@@ -1,0 +1,24 @@
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# 运行时数据：游戏库、配置、图标缓存
+data/*
+!data/.gitkeep
+
+# 凭据：绝对不要提交
+.env
+.env.local
+steam-token.json
+*.session
+
+# 日志与构建产物
+*.log
+dist/
+build/
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

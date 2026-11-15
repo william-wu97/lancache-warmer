@@ -1,0 +1,74 @@
+# ============================================================
+#  lancache-warmer 全栈
+#
+#  三个服务各司其职：
+#    dnsmasq  把游戏内容域名解析到本机
+#    lancache 真正的缓存服务，命中直返、未命中回源并落盘
+#    warmer   面板 + 预热引擎
+#
+#  用法：
+#    cp .env.example .env   # 改 NAS_IP 和路径
+#    docker compose up -d
+# ============================================================
+
+services:
+  # ---------- DNS 劫持 ----------
+  # 用子域通配而不是依赖外部域名列表：
+  # cache-domains 上游已经把 Steam 的列表砍到只剩触发域，
+  # 第三方工具因此拿不到本地解析，请求全部绕过缓存。
+  dnsmasq:
+    image: 4km3/dnsmasq:2.85-r2
+    container_name: lancache-warmer-dns
+    restart: unless-stopped
+    ports:
+      - "${NAS_IP}:53:53/udp"
+      - "${NAS_IP}:53:53/tcp"
+    volumes:
+      - ${DNS_CONF_DIR}/dnsmasq.conf:/etc/dnsmasq.conf:ro
+    cap_add:
+      - NET_ADMIN
+
+  # ---------- 缓存服务 ----------
+  lancache:
+    image: lancachenet/monolithic:latest
+    container_name: lancache-warmer-cache
+    restart: unless-stopped
+    environment:
+      USE_GENERIC_CACHE: "true"
+      LANCACHE_IP: "${NAS_IP}"
+      CACHE_DISK_SIZE: "${CACHE_DISK_SIZE}"
+      MIN_FREE_DISK: "${MIN_FREE_DISK}"
+      TZ: "${TZ}"
+    ports:
+      # 这两个端口是 lancache 的硬性要求，不要改
+      - "80:80/tcp"
+      - "443:443/tcp"
+    volumes:
+      - ${CACHE_DATA_DIR}:/data/cache
+      - ${WARMER_DATA_DIR}/logs:/data/logs
+
+  # ---------- 预热引擎 + 面板 ----------
+  # TODO: 镜像尚未发布，等首版可用后改成 ghcr.io 上的正式镜像
+  warmer:
+    build: .
+    container_name: lancache-warmer
+    restart: unless-stopped
+    environment:
+      TZ: "${TZ}"
+      NAS_IP: "${NAS_IP}"
+      PROVIDERS: "${PROVIDERS}"
+      OS_FILTER: "${OS_FILTER}"
+      CONCURRENCY: "${CONCURRENCY}"
+      CACHE_DATA_DIR: /cache
+    ports:
+      - "${WEB_PORT}:8080"
+    volumes:
+      - ${WARMER_DATA_DIR}:/app/data
+      # 只读挂载缓存目录，仅用于统计占用
+      - ${CACHE_DATA_DIR}:/cache:ro
+    dns:
+      # 必须用 dnsmasq 解析，否则请求走公网，缓存一个字节都填不进去
+      - ${NAS_IP}
+    depends_on:
+      - lancache
+      - dnsmasq
