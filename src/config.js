@@ -8,6 +8,12 @@ const packageJson = JSON.parse(
 
 const DEFAULT_PORT = 8080;
 
+// Local development fallback for the lancache cache root. Containers set
+// CACHE_DATA_DIR explicitly (see docker-compose.yml).
+const DEFAULT_CACHE_DIR = path.resolve(
+  fileURLToPath(new URL('../data/cache', import.meta.url)),
+);
+
 /**
  * Parse a port from an environment variable, falling back to the default.
  * Throws on invalid values so the process fails fast instead of listening
@@ -42,6 +48,9 @@ const config = Object.freeze({
   host: process.env.HOST || undefined,
   version: packageJson.version,
   webRoot: path.resolve(fileURLToPath(new URL('../web/', import.meta.url))),
+  // Root of the lancache data volume. The warmer only reads it, to report how
+  // much content is cached and which Steam depots are present.
+  cacheDir: path.resolve(process.env.CACHE_DATA_DIR || DEFAULT_CACHE_DIR),
 });
 
 export default config;
