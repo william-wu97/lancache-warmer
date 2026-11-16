@@ -4,7 +4,20 @@ import http from 'node:http';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import {
+  createTaskRunner,
+  NotLoggedInError,
+  TaskConflictError,
+  TaskValidationError,
+} from './api/task-runner.js';
 import config from './config.js';
+
+// Paths handled by the API router. Anything else below /api/ is not an API
+// route and falls through to the static handler.
+const API_PATHS = new Set(['/api/prefill', '/api/logs', '/api/task', '/api/cancel']);
+
+// appIds requests are tiny; a larger body is always a mistake.
+const MAX_JSON_BODY_BYTES = 64 * 1024;
 
 const MIME_TYPES = new Map([
   ['.css', 'text/css; charset=utf-8'],
@@ -47,13 +60,210 @@ function sendNotFound(res) {
   send(res, 404, { 'Content-Type': 'text/plain; charset=utf-8' }, 'Not Found');
 }
 
-function sendMethodNotAllowed(res) {
+/**
+ * @param {http.ServerResponse} res
+ * @param {number} statusCode
+ * @param {unknown} payload
+ */
+function sendJson(res, statusCode, payload) {
+  send(
+    res,
+    statusCode,
+    {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+    JSON.stringify(payload),
+  );
+}
+
+/**
+ * @param {http.ServerResponse} res
+ * @param {string} [allow]
+ */
+function sendMethodNotAllowed(res, allow = 'GET, HEAD') {
   send(
     res,
     405,
-    { Allow: 'GET, HEAD', 'Content-Type': 'text/plain; charset=utf-8' },
+    { Allow: allow, 'Content-Type': 'text/plain; charset=utf-8' },
     'Method Not Allowed',
   );
+}
+
+/**
+ * A request body that cannot be accepted. Carries the status code the API
+ * layer should answer with.
+ */
+class RequestBodyError extends Error {
+  /**
+   * @param {number} statusCode
+   * @param {string} message
+   */
+  constructor(statusCode, message) {
+    super(message);
+    this.name = 'RequestBodyError';
+    this.statusCode = statusCode;
+  }
+}
+
+/**
+ * Read and parse a JSON request body. The payload is small, so the whole body
+ * is collected before parsing; the size limit prevents an unbounded read.
+ *
+ * @param {http.IncomingMessage} req
+ * @returns {Promise<unknown>}
+ */
+async function readJsonBody(req) {
+  /** @type {Buffer[]} */
+  const chunks = [];
+  let total = 0;
+
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buffer.length;
+    if (total > MAX_JSON_BODY_BYTES) {
+      throw new RequestBodyError(413, '请求体过大');
+    }
+    chunks.push(buffer);
+  }
+
+  const text = Buffer.concat(chunks).toString('utf8').trim();
+  if (text === '') {
+    throw new RequestBodyError(400, '请求体必须是非空 JSON');
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new RequestBodyError(400, '请求体不是合法 JSON');
+  }
+}
+
+/**
+ * Stream log lines as Server-Sent Events. `subscribe()` replays the buffered
+ * history before registering the listener, so the client sees the recent lines
+ * followed by every later line. The subscription is dropped as soon as the
+ * response closes, which covers a client disconnect.
+ *
+ * @param {http.ServerResponse} res
+ * @param {ReturnType<typeof createTaskRunner>} runner
+ */
+function handleLogStream(res, runner) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    // Disable proxy buffering so lines arrive as they are produced.
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders();
+
+  let closed = false;
+  const unsubscribe = runner.subscribe((entry) => {
+    if (closed || res.writableEnded) {
+      return;
+    }
+
+    try {
+      res.write(`data: ${JSON.stringify(entry)}\n\n`);
+    } catch {
+      // The connection died mid-write; the close handler removes the listener.
+    }
+  });
+
+  const cleanup = () => {
+    if (closed) {
+      return;
+    }
+    closed = true;
+    unsubscribe();
+  };
+
+  res.on('close', cleanup);
+  res.on('error', cleanup);
+}
+
+/**
+ * Dispatch one of the exact API paths. Unknown methods get a 405 with the
+ * allowed verb; runner errors are translated onto the documented status codes.
+ *
+ * @param {http.IncomingMessage} req
+ * @param {http.ServerResponse} res
+ * @param {string} pathname
+ * @param {ReturnType<typeof createTaskRunner>} runner
+ */
+async function handleApiRequest(req, res, pathname, runner) {
+  const method = req.method ?? 'GET';
+
+  if (pathname === '/api/prefill') {
+    if (method !== 'POST') {
+      sendMethodNotAllowed(res, 'POST');
+      return;
+    }
+
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (error) {
+      if (error instanceof RequestBodyError) {
+        sendJson(res, error.statusCode, { error: error.message });
+        return;
+      }
+      throw error;
+    }
+
+    try {
+      const appIds = body !== null && typeof body === 'object'
+        ? Reflect.get(body, 'appIds')
+        : undefined;
+      const task = await runner.start(appIds);
+      sendJson(res, 202, task);
+    } catch (error) {
+      if (error instanceof TaskValidationError) {
+        sendJson(res, 400, { error: error.message });
+        return;
+      }
+      if (error instanceof TaskConflictError) {
+        sendJson(res, 409, { error: error.message });
+        return;
+      }
+      if (error instanceof NotLoggedInError) {
+        sendJson(res, 428, { error: error.message });
+        return;
+      }
+      throw error;
+    }
+    return;
+  }
+
+  if (pathname === '/api/task') {
+    if (method !== 'GET') {
+      sendMethodNotAllowed(res, 'GET');
+      return;
+    }
+    sendJson(res, 200, runner.getSnapshot());
+    return;
+  }
+
+  if (pathname === '/api/cancel') {
+    if (method !== 'POST') {
+      sendMethodNotAllowed(res, 'POST');
+      return;
+    }
+
+    const cancelled = runner.cancel();
+    sendJson(res, 200, { cancelled, state: runner.getSnapshot().state });
+    return;
+  }
+
+  if (pathname === '/api/logs') {
+    if (method !== 'GET') {
+      sendMethodNotAllowed(res, 'GET');
+      return;
+    }
+    handleLogStream(res, runner);
+    return;
+  }
 }
 
 /**
@@ -140,8 +350,9 @@ async function serveFile(res, filePath, headOnly) {
  * @param {http.IncomingMessage} req
  * @param {http.ServerResponse} res
  * @param {string} webRoot
+ * @param {ReturnType<typeof createTaskRunner>} runner
  */
-async function handleRequest(req, res, webRoot) {
+async function handleRequest(req, res, webRoot, runner) {
   const method = req.method ?? 'GET';
   const isRead = method === 'GET' || method === 'HEAD';
 
@@ -169,6 +380,11 @@ async function handleRequest(req, res, webRoot) {
     return;
   }
 
+  if (API_PATHS.has(pathname)) {
+    await handleApiRequest(req, res, pathname, runner);
+    return;
+  }
+
   if (!isRead) {
     sendMethodNotAllowed(res);
     return;
@@ -187,14 +403,14 @@ async function handleRequest(req, res, webRoot) {
  * Create the HTTP server without binding a port, so tests can listen on an
  * ephemeral port.
  *
- * @param {{ webRoot?: string }} [options]
+ * @param {{ webRoot?: string, taskRunner?: ReturnType<typeof createTaskRunner> }} [options]
  * @returns {http.Server}
  */
-export function createServer({ webRoot = config.webRoot } = {}) {
+export function createServer({ webRoot = config.webRoot, taskRunner = createTaskRunner() } = {}) {
   const root = path.resolve(webRoot);
 
   return http.createServer((req, res) => {
-    handleRequest(req, res, root).catch((error) => {
+    handleRequest(req, res, root, taskRunner).catch((error) => {
       console.error('Request failed:', error);
       if (res.headersSent) {
         res.destroy();
