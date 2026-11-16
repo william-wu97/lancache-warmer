@@ -76,6 +76,52 @@ test('unknown paths return 404', async () => {
   assert.equal(response.status, 404);
 });
 
+test('GET /api/task returns an idle snapshot before the first task', async () => {
+  const response = await fetch(`${baseUrl}/api/task`);
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /^application\/json/);
+  assert.deepEqual(await response.json(), {
+    state: 'idle',
+    appIds: [],
+    progress: {
+      appsDone: 0,
+      appsTotal: 0,
+      chunksOk: 0,
+      chunksFailed: 0,
+      bytes: 0,
+      hit: 0,
+      miss: 0,
+    },
+    startedAt: null,
+    finishedAt: null,
+    error: null,
+  });
+});
+
+test('POST /api/prefill rejects invalid appIds with 400', async () => {
+  const response = await fetch(`${baseUrl}/api/prefill`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ appIds: ['413150'] }),
+  });
+
+  assert.equal(response.status, 400);
+  assert.match(response.headers.get('content-type'), /^application\/json/);
+  assert.match((await response.json()).error, /appIds/);
+});
+
+test('POST /api/prefill rejects an unparseable body with 400', async () => {
+  const response = await fetch(`${baseUrl}/api/prefill`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: 'not json',
+  });
+
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /JSON/);
+});
+
 test('encoded path traversal does not escape the web root', async () => {
   const response = await fetch(`${baseUrl}/%2e%2e%2fpackage.json`);
 

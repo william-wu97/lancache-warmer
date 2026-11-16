@@ -358,30 +358,42 @@ test('startLogin rejects when no QR challenge URL is returned', async () => {
 });
 
 test('the login flow never logs the refresh token', async () => {
-  const session = new FakeLoginSession();
-  const captured = [];
-  const originals = new Map();
+  await withTempDir(async (dataDir) => {
+    const session = new FakeLoginSession();
+    const captured = [];
+    const originals = new Map();
 
-  for (const name of ['log', 'info', 'warn', 'error', 'debug']) {
-    originals.set(name, console[name]);
-    console[name] = (...args) => captured.push(args.map(String).join(' '));
-  }
-
-  try {
-    const { sessionId } = await startLogin({ sessionFactory: () => session });
-    const pending = waitForToken(sessionId);
-    session.refreshToken = REFRESH_TOKEN;
-    session.steamID = STEAM_ID;
-    session.emit('authenticated');
-    await pending;
-  } finally {
-    for (const [name, original] of originals) {
-      console[name] = original;
+    for (const name of ['log', 'info', 'warn', 'error', 'debug']) {
+      originals.set(name, console[name]);
+      console[name] = (...args) => captured.push(args.map(String).join(' '));
     }
-  }
 
-  assert.ok(
-    captured.every((message) => !message.includes(REFRESH_TOKEN)),
-    'no log line may contain the refresh token',
-  );
+    try {
+      const { sessionId } = await startLogin({
+        sessionFactory: () => session,
+        dataDir,
+      });
+      const pending = waitForToken(sessionId);
+      session.refreshToken = REFRESH_TOKEN;
+      session.steamID = STEAM_ID;
+      session.emit('authenticated');
+      await pending;
+
+      // The real token store is used here; keep it out of the repository data
+      // directory so a test run cannot leave a fake token behind.
+      assert.deepEqual(
+        (await loadToken({ dataDir })).refreshToken,
+        REFRESH_TOKEN,
+      );
+    } finally {
+      for (const [name, original] of originals) {
+        console[name] = original;
+      }
+    }
+
+    assert.ok(
+      captured.every((message) => !message.includes(REFRESH_TOKEN)),
+      'no log line may contain the refresh token',
+    );
+  });
 });
