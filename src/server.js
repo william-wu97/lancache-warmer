@@ -4,6 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { createLoginRoutes, LOGIN_PATHS } from './api/login-routes.js';
 import {
   createTaskRunner,
   NotLoggedInError,
@@ -351,18 +352,20 @@ async function serveFile(res, filePath, headOnly) {
  * @param {http.ServerResponse} res
  * @param {string} webRoot
  * @param {ReturnType<typeof createTaskRunner>} runner
+ * @param {ReturnType<typeof createLoginRoutes>} loginRoutes
  */
-async function handleRequest(req, res, webRoot, runner) {
+async function handleRequest(req, res, webRoot, runner, loginRoutes) {
   const method = req.method ?? 'GET';
   const isRead = method === 'GET' || method === 'HEAD';
 
-  let pathname;
+  let url;
   try {
-    pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
+    url = new URL(req.url ?? '/', 'http://localhost');
   } catch {
     send(res, 400, { 'Content-Type': 'text/plain; charset=utf-8' }, 'Bad Request');
     return;
   }
+  const pathname = url.pathname;
 
   if (pathname === '/health') {
     if (!isRead) {
@@ -377,6 +380,11 @@ async function handleRequest(req, res, webRoot, runner) {
       'Cache-Control': 'no-store',
     });
     res.end(method === 'HEAD' ? undefined : body);
+    return;
+  }
+
+  if (LOGIN_PATHS.has(pathname)) {
+    await loginRoutes.handle(req, res, pathname, url.searchParams);
     return;
   }
 
@@ -403,14 +411,22 @@ async function handleRequest(req, res, webRoot, runner) {
  * Create the HTTP server without binding a port, so tests can listen on an
  * ephemeral port.
  *
- * @param {{ webRoot?: string, taskRunner?: ReturnType<typeof createTaskRunner> }} [options]
+ * @param {{
+ *   webRoot?: string,
+ *   taskRunner?: ReturnType<typeof createTaskRunner>,
+ *   loginRoutes?: ReturnType<typeof createLoginRoutes>,
+ * }} [options]
  * @returns {http.Server}
  */
-export function createServer({ webRoot = config.webRoot, taskRunner = createTaskRunner() } = {}) {
+export function createServer({
+  webRoot = config.webRoot,
+  taskRunner = createTaskRunner(),
+  loginRoutes = createLoginRoutes(),
+} = {}) {
   const root = path.resolve(webRoot);
 
   return http.createServer((req, res) => {
-    handleRequest(req, res, root, taskRunner).catch((error) => {
+    handleRequest(req, res, root, taskRunner, loginRoutes).catch((error) => {
       console.error('Request failed:', error);
       if (res.headersSent) {
         res.destroy();
