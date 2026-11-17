@@ -405,7 +405,7 @@ test('prefillApp honours opts.osFilter when selecting depots', async () => {
   assert.equal(result.bytes, 83);
 });
 
-test('prefillApp defaults to 16 concurrent downloads', async () => {
+test('prefillApp uses the default concurrency when none is given', async () => {
   const chunks = Array.from(
     { length: 20 },
     (_, index) => chunk(String.fromCharCode('a'.charCodeAt(0) + index), index + 1),
@@ -440,7 +440,8 @@ test('prefillApp defaults to 16 concurrent downloads', async () => {
 
   assert.equal(result.chunks, 20);
   assert.equal(result.failed, 0);
-  assert.equal(peak, 16);
+  // 默认并发已提到 32（CONCURRENCY 可覆盖）：20 个 chunk 应全部并行
+  assert.equal(peak, 20);
 });
 
 test('a throwing onProgress callback cannot abort or retry downloads', async () => {
