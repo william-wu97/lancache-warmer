@@ -1473,10 +1473,23 @@ async function fetchCachedDepots() {
       const count = Array.isArray(data.depots) ? data.depots.length : 0;
       dom.depotValue.textContent = `${count} depot`;
       const manifests = Number.isFinite(data.manifestCount) ? data.manifestCount : 0;
-      const ids = count > 0
-        ? data.depots.map((item) => item.depotId).join(', ')
-        : '（空）';
-      dom.depotChip.title = `已缓存 ${count} 个 depot / ${manifests} 个 manifest\n${ids}`;
+
+      // 名字要连着 Steam 查，慢且可能失败；拿不到就只显示 id。
+      let names = {};
+      try {
+        const resolved = await request('/api/depot-names', { timeoutMs: 25000 });
+        names = resolved && resolved.names ? resolved.names : {};
+      } catch {
+        names = {};
+      }
+
+      const lines = count > 0
+        ? data.depots.map((item) => {
+          const name = names[String(item.depotId)];
+          return name ? `${item.depotId}  ${name}` : `${item.depotId}  （未识别）`;
+        })
+        : ['（空）'];
+      dom.depotChip.title = `已缓存 ${count} 个 depot / ${manifests} 个 manifest\n\n${lines.join('\n')}`;
     } else {
       dom.depotValue.textContent = '无记录';
       dom.depotChip.title = data && data.file
