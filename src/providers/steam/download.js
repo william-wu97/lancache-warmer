@@ -215,9 +215,13 @@ export async function downloadChunk(host, depotId, sha, expectedSize, opts = {})
       }
     }
 
-    if (bytes !== expectedSize) {
+    // expectedSize 来自 manifest 的 cb_compressed，是「压缩后」的大小。
+    // steamcontent 返回的正好是压缩数据，二者相等；国内 CDN（clngaa 等）
+    // 返回的是解压后的内容，比预期大——这不是错误。所以只拦「比预期小」
+    // 的情况，那才说明数据被截断了。
+    if (expectedSize > 0 && bytes < expectedSize) {
       throw new Error(
-        `Chunk ${sha} from ${host} size mismatch: expected ${expectedSize} bytes, got ${bytes}`,
+        `Chunk ${sha} from ${host} truncated: expected at least ${expectedSize} bytes, got ${bytes}`,
       );
     }
 
