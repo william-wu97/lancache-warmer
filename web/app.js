@@ -455,7 +455,9 @@ function renderQrSvg(svgText) {
 
 async function checkInitialLogin() {
   try {
+    console.info('[boot] 请求登录状态…');
     const status = await request(API.loginStatus, { timeoutMs: 8000 });
+    console.info('[boot] 登录状态返回:', JSON.stringify(status));
     if (status !== null && typeof status === 'object' && status.state === 'ok') {
       enterApp();
       return;
@@ -1725,12 +1727,15 @@ async function boot() {
     return;
   }
 
+  console.info('[boot] DOM 缓存完成');
   bindEvents();
   loadLibrary();
   renderLibrary();
   connectLogs();
+  console.info('[boot] 事件绑定 / 库加载 / 日志连接完成');
 
   const hasLoginHint = readLoginHint();
+  console.info('[boot] hasLoginHint =', hasLoginHint);
 
   if (hasLoginHint) {
     // 之前登录过：保持 boot-view 占位，等 checkLogin 决定显示哪个视图。
@@ -1756,6 +1761,7 @@ async function boot() {
     await fillMissingNames();
   })();
   if (hasLoginHint) {
+    console.info('[boot] 开始检查登录状态');
     // 兜底：checkInitialLogin 内部有 8s 超时，但网络层卡死时可能更久，
     // 15s 后仍未进入应用就强制显示登录视图，避免一直停在占位页。
     const guard = window.setTimeout(() => {
@@ -1767,6 +1773,7 @@ async function boot() {
     }, 15000);
     try {
       await checkInitialLogin();
+      console.info('[boot] 登录检查结束, loggedIn =', state.loggedIn);
     } finally {
       window.clearTimeout(guard);
     }
