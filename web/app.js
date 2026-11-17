@@ -467,6 +467,9 @@ async function checkInitialLogin() {
       void startQrLogin();
       return;
     }
+    // 必须切回登录视图：之前只改了隐藏视图里的文字，用户看到的是
+    // 永远停在「正在检查登录状态」的启动占位。
+    showLogin();
     setLoginChip('未登录', 'off');
     setQrOverlay('error', '无法检查登录状态');
     setLoginStatus(`无法检查登录状态：${errorText(error)}`, 'error');
@@ -1753,7 +1756,20 @@ async function boot() {
     await fillMissingNames();
   })();
   if (hasLoginHint) {
-    await checkInitialLogin();
+    // 兜底：checkInitialLogin 内部有 8s 超时，但网络层卡死时可能更久，
+    // 15s 后仍未进入应用就强制显示登录视图，避免一直停在占位页。
+    const guard = window.setTimeout(() => {
+      if (!state.loggedIn) {
+        showLogin();
+        setLoginStatus('检查登录状态超时，请重新扫码登录', 'error');
+        setRegenerateVisible(true);
+      }
+    }, 15000);
+    try {
+      await checkInitialLogin();
+    } finally {
+      window.clearTimeout(guard);
+    }
   } else {
     void startQrLogin();
   }
