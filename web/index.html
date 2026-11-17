@@ -63,7 +63,15 @@
   </header>
 
   <main class="app" id="main">
-    <section class="view login-view" id="login-view" aria-labelledby="login-title">
+    <!-- 启动占位：先隐藏两个真实视图，避免已登录用户看到登录框一闪而过 -->
+    <section class="view boot-view" id="boot-view" aria-live="polite">
+      <div class="boot-card card">
+        <span class="boot-spinner" aria-hidden="true"></span>
+        <p class="boot-text">正在检查登录状态…</p>
+      </div>
+    </section>
+
+    <section class="view login-view" id="login-view" aria-labelledby="login-title" hidden>
       <div class="login-card card">
         <div class="login-head">
           <span class="login-icon" aria-hidden="true">

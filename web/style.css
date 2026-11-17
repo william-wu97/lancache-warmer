@@ -1471,3 +1471,42 @@ code {
     scroll-behavior: auto !important;
   }
 }
+
+/* 启动占位：刷新时先显示它，避免登录框闪现 */
+.boot-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42vh;
+}
+
+.boot-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 30px;
+}
+
+.boot-spinner {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-top-color: #4aa3ff;
+  border-radius: 50%;
+  animation: boot-spin 0.8s linear infinite;
+}
+
+.boot-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted, #9aa4b2);
+}
+
+@keyframes boot-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-spinner { animation-duration: 2.4s; }
+}

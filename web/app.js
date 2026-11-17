@@ -667,6 +667,7 @@ function enterApp(options = {}) {
   state.login.expiresAt = 0;
   setQrOverlay('ready', '');
   setLoginChip('已登录', 'ok');
+  hideBootView();
   dom.loginView.hidden = true;
   dom.libraryView.hidden = false;
   dom.logoutButton.hidden = false;
@@ -683,12 +684,23 @@ function enterApp(options = {}) {
   }
 }
 
+/**
+ * 隐藏启动占位。两个真实视图在 HTML 里初始都是 hidden，
+ * 避免已登录用户刷新时先看到登录框闪一下。
+ */
+function hideBootView() {
+  if (dom.bootView !== null && dom.bootView !== undefined) {
+    dom.bootView.hidden = true;
+  }
+}
+
 function showLogin() {
   state.loggedIn = false;
   stopLoginTimers();
   state.login.sessionId = '';
   state.login.expiresAt = 0;
   setLoginChip('未登录', 'off');
+  hideBootView();
   dom.loginView.hidden = false;
   dom.libraryView.hidden = true;
   dom.logoutButton.hidden = true;
@@ -1613,6 +1625,7 @@ async function fetchCachedDepots() {
 // ---------------------------------------------------------------------------
 
 function cacheDom() {
+  dom.bootView = byId('boot-view');
   dom.loginChip = byId('login-chip');
   dom.loginValue = byId('login-value');
   dom.cacheChip = byId('cache-chip');
