@@ -272,6 +272,17 @@ function startLogin(factory, timeoutMs, refreshToken, logger, cellId) {
   pending = entry;
   instance.on('loggedOn', entry.onLoggedOn);
   instance.on('error', entry.onError);
+  // steam-user 的 debug 流会打印 CM 握手细节。登录超时时只有这里有线索：
+  // 到底是 DNS、TCP 还是协议层。开关由 STEAM_DEBUG=1 控制，平时保持安静。
+  if (process.env.STEAM_DEBUG === '1') {
+    instance.on('debug', (message) => {
+      try {
+        logger.error('[steam-debug]', String(message).slice(0, 300));
+      } catch {
+        // ignore
+      }
+    });
+  }
 
   // 国内网络下 steam-user 默认拿到的 CM 列表常含连不上的节点，表现就是
   // 反复超时。实测有效做法是强制指定 cellid，让 Steam 只返回该区域的 CM。
