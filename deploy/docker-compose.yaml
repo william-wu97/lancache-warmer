@@ -33,7 +33,7 @@ services:
       # 旧 Python 面板的数据目录：迁移下载历史用
       LEGACY_STATE_DIR: /legacy
       OS_FILTER: windows
-      CONCURRENCY: "32"
+      CONCURRENCY: "64"
       # 排查 CM 连接时临时打开
       STEAM_DEBUG: "1"
     ports:

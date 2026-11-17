@@ -418,6 +418,9 @@ export function pickHosts(servers, opts = {}) {
   /** @type {string[]} */
   const picked = [];
   const seen = new Set();
+  // 国内网络下 cacheN-tyo3 这类东京节点延迟高且频繁超时，排到最后；
+  // 全部都是远端节点时保持原顺序（总比没有强）。
+  const isFar = (host) => /-tyo\d*\./i.test(host);
 
   for (const entry of hostEntries(servers)) {
     const host = normalizeHost(entry);
@@ -435,6 +438,14 @@ export function pickHosts(servers, opts = {}) {
 
     seen.add(host);
     picked.push(host);
+  }
+
+  if (picked.length > 1) {
+    const near = picked.filter((host) => !isFar(host));
+    // 只有存在近端节点时才重排，否则保持原样
+    if (near.length > 0 && near.length < picked.length) {
+      return [...near, ...picked.filter((host) => isFar(host))];
+    }
   }
 
   return picked;
