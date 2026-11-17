@@ -42,6 +42,16 @@ services:
       # SteamPrefill 的状态目录：读它记录的已下载 depot 清单（只读）
       - /volume2/docker/steam-prefill:/prefill:ro
     dns:
-      # 关键：用本机 dnsmasq 解析，chunk 请求才会落到 lancache
-      # 否则走公网，缓存一个字节都填不进去
+      # 主 DNS 指向本机 dnsmasq：chunk 请求才会落到 lancache（否则走公网，
+      # 缓存一个字节都填不进去）。
+      # 但 dnsmasq 只劫持 steamcontent.com，其余域名靠它转发；一旦转发失败，
+      # steam-user 连 CM 就会超时，所以必须带一个公共 DNS 兜底。
       - 192.168.31.3
+      - 223.5.5.5
+    networks:
+      - lancache
+
+networks:
+  lancache:
+    external: true
+    name: lancache

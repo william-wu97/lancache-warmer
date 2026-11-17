@@ -19,7 +19,10 @@
 
 import SteamUser from 'steam-user';
 
-const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 60_000;
+
+/** Steam cell id used for CM discovery; 35 works reliably from CN networks. */
+const DEFAULT_CELL_ID = 35;
 
 /**
  * @typedef {Object} SteamUserLike
@@ -160,6 +163,36 @@ function cancelPending(entry, reason) {
 }
 
 /**
+ * Force a specific Steam cell id on CM discovery requests.
+ *
+ * Without this, `GetCMListForConnect` returns a global list and, on networks
+ * with poor routing to Steam, the client keeps picking unreachable servers
+ * until the login times out. Pinning the cell makes Steam reply with CMs for
+ * that region only.
+ *
+ * @param {SteamUserLike & { _apiRequest?: Function }} instance
+ * @param {number} cellId
+ */
+function patchCellId(instance, cellId) {
+  const original = instance?._apiRequest;
+  if (typeof original !== 'function') {
+    // Fake instances used in tests don't implement this; nothing to patch.
+    return;
+  }
+
+  const bound = original.bind(instance);
+  instance._apiRequest = (method, iface, name, version, parameters, ...rest) => {
+    let next = parameters;
+    if (name === 'GetCMListForConnect') {
+      next = { ...parameters, cellid: cellId };
+    } else if (name === 'GetServersForSteamPipe') {
+      next = { ...parameters, cell_id: cellId };
+    }
+    return bound(method, iface, name, version, next, ...rest);
+  };
+}
+
+/**
  * Create and log on a new `steam-user` instance.
  *
  * @param {SteamUserFactory} factory
@@ -168,7 +201,7 @@ function cancelPending(entry, reason) {
  * @param {{ error: (...args: any[]) => void }} logger
  * @returns {Promise<SteamUserLike>}
  */
-function startLogin(factory, timeoutMs, refreshToken, logger) {
+function startLogin(factory, timeoutMs, refreshToken, logger, cellId) {
   let instance;
   try {
     instance = factory({ autoRelogin: true });
@@ -240,8 +273,18 @@ function startLogin(factory, timeoutMs, refreshToken, logger) {
   instance.on('loggedOn', entry.onLoggedOn);
   instance.on('error', entry.onError);
 
+  // 国内网络下 steam-user 默认拿到的 CM 列表常含连不上的节点，表现就是
+  // 反复超时。实测有效做法是强制指定 cellid，让 Steam 只返回该区域的 CM。
+  // 这段是踩坑换来的：没有它，30 秒超时几乎必然发生。
+  patchCellId(instance, cellId);
+
   try {
-    instance.logOn({ refreshToken });
+    instance.logOn({
+      refreshToken,
+      // 不带 logonID 和 machineName 时，Steam 有时会拖很久才回 loggedOn
+      logonID: 30993,
+      machineName: 'lancache-warmer',
+    });
   } catch (error) {
     if (pending === entry) {
       cancelPending(entry, toError(error));
@@ -296,11 +339,13 @@ export function connect(opts = {}) {
   const factory = typeof opts.steamUserFactory === 'function'
     ? opts.steamUserFactory
     : defaultSteamUserFactory;
+  // 35 是实测在国内容易连通的 cell；没有它 CM 列表会给出连不上的节点。
+  const cellId = Number.isFinite(opts.cellId) ? opts.cellId : DEFAULT_CELL_ID;
   const logger = opts.logger !== null && typeof opts.logger === 'object' && typeof opts.logger.error === 'function'
     ? opts.logger
     : console;
 
-  return startLogin(factory, timeoutMs, refreshToken, logger);
+  return startLogin(factory, timeoutMs, refreshToken, logger, cellId);
 }
 
 /**

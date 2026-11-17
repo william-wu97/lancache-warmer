@@ -98,7 +98,10 @@ test('connect creates steam-user with autoRelogin, logs on and resolves after lo
 
   assert.equal(fakes.instances.length, 1);
   assert.deepEqual(fakes.instances[0].options, { autoRelogin: true });
-  assert.deepEqual(fakes.instances[0].logOnCalls, [{ refreshToken: TOKEN }]);
+  // logOn 额外带上 logonID / machineName：缺这两个时 Steam 回 loggedOn 很慢
+  assert.equal(fakes.instances[0].logOnCalls.length, 1);
+  assert.equal(fakes.instances[0].logOnCalls[0].refreshToken, TOKEN);
+  assert.equal(typeof fakes.instances[0].logOnCalls[0].machineName, 'string');
   // Not connected until Steam confirms the login.
   assert.equal(getUser(), null);
 
@@ -144,7 +147,7 @@ test('a different token logs the old instance off before creating a new one', as
   assert.equal(first.offed, true);
   assert.equal(first.logOffCalls, 1);
   assert.equal(fakes.instances.length, 2);
-  assert.deepEqual(fakes.instances[1].logOnCalls, [{ refreshToken: OTHER_TOKEN }]);
+  assert.equal(fakes.instances[1].logOnCalls[0].refreshToken, OTHER_TOKEN);
   assert.equal(getUser(), null);
 
   fakes.instances[1].emit('loggedOn', {});
