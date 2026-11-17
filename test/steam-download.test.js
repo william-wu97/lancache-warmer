@@ -43,7 +43,8 @@ test('downloadChunk builds the chunk URL, sends the Steam UA and counts streamed
 
   assert.deepEqual(result, { bytes: 7, cacheStatus: 'HIT' });
   assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, `http://${HOST}/depot/${DEPOT_ID}/chunk/${SHA}`);
+  // 连接固定触发域名，真实 CDN 由 Host 头携带（与 SteamKit 一致）
+  assert.equal(requests[0].url, `http://lancache.steamcontent.com/depot/${DEPOT_ID}/chunk/${SHA}`);
   assert.equal(requests[0].init.headers['User-Agent'], USER_AGENT);
   // The response body is consumed as a stream, never returned or buffered.
   assert.deepEqual(Object.keys(result).sort(), ['bytes', 'cacheStatus']);

@@ -10,8 +10,46 @@
  * `fetch` but can be replaced with a fake returning a `Response`.
  */
 
+import http from 'node:http';
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 const USER_AGENT = 'Valve/Steam HTTP Client 1.0';
+
+/** lancache 约定的触发域名，配合 Host 头指向真实 CDN。 */
+const LANCACHE_TRIGGER_HOST = 'lancache.steamcontent.com';
+
+/**
+ * GET a URL with a caller-controlled `Host` header.
+ *
+ * `fetch` cannot do this: undici treats Host as a forbidden header and always
+ * sends the URL's own host, which breaks the lancache trigger-domain scheme.
+ *
+ * @param {string} url
+ * @param {string} hostHeader Real CDN host, sent as `Host:`.
+ * @param {AbortController} controller
+ * @returns {Promise<import('node:http').IncomingMessage>}
+ */
+function httpGet(url, hostHeader, controller) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+    const req = http.request(
+      {
+        hostname: target.hostname,
+        port: target.port === '' ? 80 : Number(target.port),
+        path: `${target.pathname}${target.search}`,
+        method: 'GET',
+        headers: { Host: hostHeader, 'User-Agent': USER_AGENT },
+      },
+      resolve,
+    );
+
+    req.on('error', reject);
+    controller.signal.addEventListener('abort', () => {
+      req.destroy(new Error('aborted'));
+    }, { once: true });
+    req.end();
+  });
+}
 
 // Public Steam content nodes (for example cloudflare.steamstatic.com) are mixed
 // into the CDN list and answer 403 to some client IPs. Only the cache nodes
@@ -180,13 +218,11 @@ export async function downloadChunk(host, depotId, sha, expectedSize, opts = {})
   // steam-user 的 getCDNAuthToken 返回的字符串已自带 `?auth_key=...`。
   const authToken = typeof opts.authToken === 'string' ? opts.authToken : '';
 
-  // 直接连具体 CDN 域名：这些国内域名已由 dnsmasq 劫持到缓存服务器。
-  //
-  // 注：SteamKit2 的 ClientLancache 走的是另一条路——连接固定触发域名
-  // lancache.steamcontent.com，再用 Host 头指定真实 CDN，这样 DNS 只需
-  // 劫持 steamcontent.com 一个后缀。Node 的 fetch(undici) 不允许覆盖 Host
-  // 头（实测被忽略），要改用 node:http 才能实现，暂未采用。
-  const url = `http://${host}/depot/${depotId}/chunk/${sha}${authToken}`;
+  // 照搬 SteamKit2 ClientLancache 的做法：连固定的触发域名
+  // lancache.steamcontent.com（dnsmasq 已把 steamcontent.com 及其子域指到
+  // 缓存服务器），真实 CDN 由 Host 头指定。这样 DNS 只需劫持一个后缀。
+  // 必须用 node:http —— fetch(undici) 会忽略自定义 Host 头。
+  const url = `http://${LANCACHE_TRIGGER_HOST}/depot/${depotId}/chunk/${sha}${authToken}`;
   const controller = new AbortController();
 
   let timeoutId;
@@ -197,28 +233,49 @@ export async function downloadChunk(host, depotId, sha, expectedSize, opts = {})
    * ignores the abort signal still cannot exceed the deadline.
    */
   const request = (async () => {
-    const response = await fetcher(url, {
-      headers: { 'User-Agent': USER_AGENT },
-      signal: controller.signal,
-    });
-
-    if (response === null || typeof response !== 'object') {
-      throw new Error(`Chunk ${sha} from ${host} returned no response`);
-    }
-
-    if (!response.ok) {
-      await cancelBody(response.body);
-      throw new Error(
-        `Chunk ${sha} from ${host} failed with HTTP ${response.status}`,
-      );
-    }
-
     let bytes = 0;
-    if (response.body) {
-      for await (const chunk of response.body) {
-        // Drop the payload immediately; only its length is retained.
-        bytes += chunkByteLength(chunk);
+    let cacheStatus = null;
+
+    if (typeof opts.fetcher === 'function') {
+      // 测试注入的 fetcher：保持原有 Web Response 语义
+      const response = await fetcher(url, {
+        headers: { 'User-Agent': USER_AGENT },
+        signal: controller.signal,
+      });
+
+      if (response === null || typeof response !== 'object') {
+        throw new Error(`Chunk ${sha} from ${host} returned no response`);
       }
+
+      if (!response.ok) {
+        await cancelBody(response.body);
+        throw new Error(
+          `Chunk ${sha} from ${host} failed with HTTP ${response.status}`,
+        );
+      }
+
+      if (response.body) {
+        for await (const chunk of response.body) {
+          // Drop the payload immediately; only its length is retained.
+          bytes += chunkByteLength(chunk);
+        }
+      }
+      cacheStatus = parseCacheStatus(response.headers);
+    } else {
+      // 生产路径：node:http，可以自定义 Host 头
+      const response = await httpGet(url, host, controller);
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        response.resume();
+        throw new Error(
+          `Chunk ${sha} from ${host} failed with HTTP ${response.statusCode}`,
+        );
+      }
+
+      for await (const chunk of response) {
+        bytes += chunk.length;
+      }
+      cacheStatus = parseCacheStatus(response.headers);
     }
 
     // expectedSize 来自 manifest 的 cb_compressed，是「压缩后」的大小。
@@ -231,7 +288,7 @@ export async function downloadChunk(host, depotId, sha, expectedSize, opts = {})
       );
     }
 
-    return { bytes, cacheStatus: parseCacheStatus(response.headers) };
+    return { bytes, cacheStatus };
   })();
 
   const deadline = new Promise((_, reject) => {
