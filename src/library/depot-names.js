@@ -71,6 +71,7 @@ export async function resolveDepotNames(opts = {}) {
 
   const names = {};
   const appNames = {};
+  const dlcInfo = {};
   let note;
 
   // 前端把游戏库存在 localStorage，服务端的 library.json 往往是空的，
@@ -90,7 +91,7 @@ export async function resolveDepotNames(opts = {}) {
       } else {
         const connectFn = opts.connectFn ?? connect;
         const user = await connectFn({ refreshToken: token.refreshToken });
-        await mapThroughLibrary(user, games, wanted, names, appNames);
+        await mapThroughLibrary(user, games, wanted, names, appNames, dlcInfo);
         const matched = Object.keys(names).length;
         const missed = wanted.size - matched;
         // 说清楚为什么有些 depot 没名字：Steam 只有 app→depots 这一个方向，
@@ -112,6 +113,8 @@ export async function resolveDepotNames(opts = {}) {
 
   return {
     names: { ...KNOWN_DEPOTS, ...names },
+    // appid → 该游戏的 DLC appid 列表（只在有 DLC 时出现）
+    dlc: dlcInfo,
     resolvedFromSteam: Object.keys(names).length > 0,
     ...(note ? { note } : {}),
   };
@@ -125,7 +128,7 @@ export async function resolveDepotNames(opts = {}) {
  * @param {Set<string>} wanted
  * @param {Record<string, string>} names Accumulator, mutated in place.
  */
-async function mapThroughLibrary(user, games, wanted, names, appNames = {}) {
+async function mapThroughLibrary(user, games, wanted, names, appNames = {}, dlcInfo = {}) {
   const remaining = new Set(wanted);
   // Batch the appids: one round trip per chunk instead of one per game.
   const BATCH = 25;
@@ -150,6 +153,15 @@ async function mapThroughLibrary(user, games, wanted, names, appNames = {}) {
       const displayName = appinfo?.common?.name || game.name;
       if (displayName) {
         appNames[String(game.appid)] = displayName;
+      }
+      // appinfo.dlc 是该 app 的 DLC appid 列表，用来确认它到底带不带 DLC
+      const dlc = Array.isArray(appinfo?.dlc)
+        ? appinfo.dlc
+          .map((item) => (typeof item === 'string' ? Number(item) : item))
+          .filter((id) => Number.isSafeInteger(id) && id > 0)
+        : [];
+      if (dlc.length > 0) {
+        dlcInfo[String(game.appid)] = dlc;
       }
       for (const depotId of Object.keys(depots)) {
         if (remaining.has(depotId)) {
