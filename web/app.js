@@ -837,9 +837,18 @@ async function fillMissingNames() {
   }
 
   const ids = placeholders.map((item) => item.appid).join(',');
+
+  // refresh=1 强制重查。depot-names 查询过程会把 appid→名字顺带写进
+  // app-names 缓存，所以先触发它，再读缓存拿结果。
+  try {
+    await request(`/api/depot-names?refresh=1&appids=${ids}`, { timeoutMs: 90000 });
+  } catch {
+    // 查不到就保持占位名，不打扰用户
+  }
+
   let resolved;
   try {
-    resolved = await request(`/api/app-names?appids=${ids}`, { timeoutMs: 40000 });
+    resolved = await request(`/api/app-names?appids=${ids}`, { timeoutMs: 20000 });
   } catch {
     return;
   }
@@ -1081,6 +1090,9 @@ function addGame(raw) {
 
   dom.appidInput.value = '';
   dom.appidInput.focus();
+
+  // 新加的游戏通常还没名字，触发一次查询补上
+  void fillMissingNames();
 }
 
 /**
