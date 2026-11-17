@@ -25,6 +25,15 @@ const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_CELL_ID = 35;
 
 /**
+ * Steam 的 cell id 决定了 CM 和 CDN 的地理分配。35 对应东京，
+ * 国内网络走那里延迟高、超时多，所以允许用 STEAM_CELL 覆盖。
+ */
+function configuredCellId() {
+  const raw = Number(process.env.STEAM_CELL);
+  return Number.isSafeInteger(raw) && raw > 0 ? raw : DEFAULT_CELL_ID;
+}
+
+/**
  * @typedef {Object} SteamUserLike
  * @property {(details: { refreshToken: string }) => void} logOn Starts the
  *   login.
@@ -237,6 +246,14 @@ function startLogin(factory, timeoutMs, refreshToken, logger, cellId) {
     pending = null;
     user = instance;
     token = refreshToken;
+    // 登录响应会带回 Steam 分配的 cell，默认落在东京(35)，导致 CDN 全给
+    // cacheN-tyo3。这里按需覆盖成国内 cell，getContentServers 才会返回近端节点。
+    const wantedCell = configuredCellId();
+    try {
+      instance.cellID = wantedCell;
+    } catch {
+      // 只读属性时忽略，退回 Steam 的分配
+    }
     removeListener(instance, 'loggedOn', entry.onLoggedOn);
     entry.resolve(instance);
   };
