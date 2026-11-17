@@ -90,7 +90,19 @@ let pending = null;
  * @returns {SteamUserLike}
  */
 function defaultSteamUserFactory(options) {
-  return new SteamUser(options);
+  // 参数照抄已验证可用的 worker 实现：
+  // - enablePicsCache:false 最关键。默认 true 时登录后会预拉一大批 app 元数据，
+  //   在慢网络上表现为「登录超时」，其实是被 PICS 拖住了。
+  // - renewRefreshTokens:false 避免后台换 token 触发重新认证。
+  // - dataDirectory 指到容器内可写目录，避免默认路径不可写。
+  return new SteamUser({
+    ...options,
+    dataDirectory: '/tmp/steam-state',
+    renewRefreshTokens: false,
+    enablePicsCache: false,
+    saveAppTickets: false,
+    protocol: SteamUser.EConnectionProtocol.Auto,
+  });
 }
 
 /**
