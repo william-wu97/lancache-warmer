@@ -70,6 +70,7 @@ export async function resolveDepotNames(opts = {}) {
   const wanted = new Set(inventory.depots.map((item) => String(item.depotId)));
 
   const names = {};
+  const appNames = {};
   let note;
 
   // 前端把游戏库存在 localStorage，服务端的 library.json 往往是空的，
@@ -89,7 +90,7 @@ export async function resolveDepotNames(opts = {}) {
       } else {
         const connectFn = opts.connectFn ?? connect;
         const user = await connectFn({ refreshToken: token.refreshToken });
-        await mapThroughLibrary(user, games, wanted, names);
+        await mapThroughLibrary(user, games, wanted, names, appNames);
         const matched = Object.keys(names).length;
         const missed = wanted.size - matched;
         // 说清楚为什么有些 depot 没名字：Steam 只有 app→depots 这一个方向，
@@ -98,6 +99,11 @@ export async function resolveDepotNames(opts = {}) {
           ? `已比对 ${games.length} 个游戏，识别 ${matched} 个 depot，${missed} 个未匹配`
           : `已比对 ${games.length} 个游戏，但都不含这些 depot（库里的游戏太少？）`;
         await writeCache(cachePath, names);
+        // 顺便把 appid → 游戏名存下来，供 /api/app-names 使用：
+        // 这一次 getProductInfo 已经拿到了名字，没必要再单独查一遍。
+        if (Object.keys(appNames).length > 0) {
+          await writeAppNamesCache(path.join(dataDir, 'app-names.json'), appNames);
+        }
       }
     } catch (error) {
       note = `查询 Steam 失败：${error.message}`;
@@ -119,7 +125,7 @@ export async function resolveDepotNames(opts = {}) {
  * @param {Set<string>} wanted
  * @param {Record<string, string>} names Accumulator, mutated in place.
  */
-async function mapThroughLibrary(user, games, wanted, names) {
+async function mapThroughLibrary(user, games, wanted, names, appNames = {}) {
   const remaining = new Set(wanted);
   // Batch the appids: one round trip per chunk instead of one per game.
   const BATCH = 25;
@@ -142,6 +148,9 @@ async function mapThroughLibrary(user, games, wanted, names) {
       }
       // appinfo 自带游戏名，不必让前端把名字一起传过来
       const displayName = appinfo?.common?.name || game.name;
+      if (displayName) {
+        appNames[String(game.appid)] = displayName;
+      }
       for (const depotId of Object.keys(depots)) {
         if (remaining.has(depotId)) {
           names[depotId] = displayName;
@@ -181,5 +190,18 @@ async function writeCache(file, names) {
     await writeFile(file, JSON.stringify({ savedAt: Date.now(), names }, null, 2));
   } catch {
     // 缓存写不进去不影响本次结果，下次再查就是了
+  }
+}
+
+/**
+ * @param {string} file
+ * @param {Record<string, string>} names
+ */
+async function writeAppNamesCache(file, names) {
+  try {
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, JSON.stringify({ savedAt: Date.now(), names }, null, 2));
+  } catch {
+    // 缓存写失败不影响本次结果
   }
 }

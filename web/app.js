@@ -1717,8 +1717,13 @@ async function boot() {
 
   void fetchVersion();
   void fetchCacheStats();
-  void fetchCachedDepots();
-  void importLegacyHistory().then(() => fillMissingNames());
+  // 串行：depot 查询会把 appid→游戏名写进缓存，之后补名字才能命中。
+  // 两者都慢（要连 Steam），但不阻塞页面渲染。
+  void (async () => {
+    await fetchCachedDepots();
+    await importLegacyHistory();
+    await fillMissingNames();
+  })();
   if (hasLoginHint) {
     await checkInitialLogin();
   } else {

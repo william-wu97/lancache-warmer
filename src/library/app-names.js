@@ -8,13 +8,10 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import config from '../config.js';
-import { connect } from '../providers/steam/client.js';
-import { loadToken } from '../providers/steam/token-store.js';
 
 const CACHE_FILE = 'app-names.json';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /** Steam accepts a list, but keep batches modest to stay well inside limits. */
-const BATCH_SIZE = 25;
 
 /**
  * @typedef {object} AppNameResult
@@ -60,47 +57,15 @@ export async function resolveAppNames(appIds, opts = {}) {
     return { names, unresolved: [] };
   }
 
-  let token;
-  try {
-    token = await loadToken();
-  } catch {
-    token = null;
-  }
-  if (!token?.refreshToken) {
-    return { names, unresolved: missing, note: '未登录 Steam，无法查询游戏名' };
-  }
+  // 这里不再单独查 Steam：getProductInfo 会拉回完整 appinfo（几十秒），
+  // 而 store API 在某些网络下不可达。名字由 /api/depot-names 那次查询
+  // 顺带写入同一个缓存，此处只负责读。
+  return {
+    names,
+    unresolved: missing,
+    note: missing.length > 0 ? '这些 appid 还没有名字缓存，请先访问 /api/depot-names 触发一次查询' : undefined,
+  };
 
-  let user;
-  try {
-    const connectFn = opts.connectFn ?? connect;
-    user = await connectFn({ refreshToken: token.refreshToken });
-  } catch (error) {
-    return { names, unresolved: missing, note: `连接 Steam 失败：${error.message}` };
-  }
-
-  const unresolved = [];
-  const fetched = {};
-
-  for (let index = 0; index < missing.length; index += BATCH_SIZE) {
-    const batch = missing.slice(index, index + BATCH_SIZE);
-    let info;
-    try {
-      info = await user.getProductInfo(batch, []);
-    } catch {
-      unresolved.push(...batch);
-      continue;
-    }
-
-    for (const appId of batch) {
-      const name = info?.apps?.[appId]?.appinfo?.common?.name;
-      if (typeof name === 'string' && name.trim() !== '') {
-        names[String(appId)] = name.trim();
-        fetched[String(appId)] = name.trim();
-      } else {
-        unresolved.push(appId);
-      }
-    }
-  }
 
   if (Object.keys(fetched).length > 0) {
     await writeCache(cachePath, { ...cached, ...fetched });
