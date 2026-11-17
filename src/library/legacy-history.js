@@ -17,6 +17,8 @@ import path from 'node:path';
 import config from '../config.js';
 
 export const LEGACY_HISTORY_FILE = 'history.json';
+/** SteamPrefill 的勾选列表；history.json 漏记的游戏通常还留在这里。 */
+export const SELECTED_APPS_FILE = 'selectedAppsToPrefill.json';
 
 /**
  * @typedef {object} LegacyEntry
@@ -74,8 +76,44 @@ export async function readLegacyHistory(opts = {}) {
     entries.push({ appid, cachedAt });
   }
 
-  // Most recently prefilled first — that is the order a user expects to see.
+  // SteamPrefill 的勾选列表里常有 history.json 没记上的游戏（例如下一个
+  // 要下载的），一并合并进来，标记来源方便前端区分。
+  const fromSelected = await readSelectedApps();
+  const known = new Set(entries.map((item) => item.appid));
+  for (const appid of fromSelected) {
+    if (!known.has(appid)) {
+      entries.push({ appid, cachedAt: 0, source: 'selected' });
+      known.add(appid);
+    }
+  }
+  for (const entry of entries) {
+    if (!entry.source) entry.source = 'history';
+  }
+
+  // 有下载时间的在前（新到旧），没时间的（仅勾选）排后面
   entries.sort((left, right) => right.cachedAt - left.cachedAt);
 
   return { available: true, file, entries };
+}
+
+/**
+ * SteamPrefill 里被勾选的 app id。
+ * @returns {Promise<number[]>}
+ */
+async function readSelectedApps() {
+  const dir = config.prefillStateDir;
+  if (!dir) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(await readFile(path.join(dir, SELECTED_APPS_FILE), 'utf8'));
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item) => Number(item))
+      .filter((id) => Number.isSafeInteger(id) && id > 0);
+  } catch {
+    return [];
+  }
 }
