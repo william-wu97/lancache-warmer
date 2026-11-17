@@ -34,6 +34,7 @@ const KNOWN_DEPOTS = {
   229005: 'Steamworks Common Redistributables',
   229006: 'Steamworks Common Redistributables',
   229007: 'Steamworks Common Redistributables',
+  229012: 'Steamworks Common Redistributables',
   229033: 'Steam Linux Runtime',
   1070560: 'Steam Linux Runtime 1.0 (scout)',
   1391110: 'Steam Linux Runtime 2.0 (soldier)',
@@ -61,7 +62,7 @@ export async function resolveDepotNames(opts = {}) {
   if (!opts.refresh) {
     const cached = await readCache(cachePath);
     if (cached) {
-      return { names: { ...KNOWN_DEPOTS, ...cached.names }, resolvedFromSteam: true };
+      return { names: { ...cached.names, ...KNOWN_DEPOTS }, resolvedFromSteam: true };
     }
   }
 
@@ -112,7 +113,9 @@ export async function resolveDepotNames(opts = {}) {
   }
 
   return {
-    names: { ...KNOWN_DEPOTS, ...names },
+    // 内置表放在后面：这些是 Steamworks 公共运行库，被几乎所有游戏的
+    // appinfo.depots 引用，动态查询会把它错认成某个具体游戏。
+    names: { ...names, ...KNOWN_DEPOTS },
     // appid → 该游戏的 DLC appid 列表（只在有 DLC 时出现）
     dlc: dlcInfo,
     resolvedFromSteam: Object.keys(names).length > 0,
