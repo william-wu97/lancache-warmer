@@ -245,9 +245,14 @@ async function defaultGetHosts(user, appId) {
   // 的节点，实测全是 cacheN-tyo3（东京），单连接 27KB/s 还频繁超时。
   // 这个接口不受登录态影响，返回的是国内 CDN（clngaa / pphimalayanrt 等），
   // 而这些域名同样能命中 lancache（见 access.log 的 HIT 记录）。
-  const publicHosts = await fetchPublicHosts();
-  if (publicHosts.length > 0) {
-    return publicHosts;
+  // 国内节点（clngaa 等）确实能命中 lancache，但要求 URL 带 auth_key，
+  // 而 warmer 构造的 chunk URL 不带（steamcontent 域名靠 lancache 兜住了）。
+  // 所以默认仍走 getContentServers；设 STEAM_PUBLIC_CDN=1 才用国内节点。
+  if (process.env.STEAM_PUBLIC_CDN === '1') {
+    const publicHosts = await fetchPublicHosts();
+    if (publicHosts.length > 0) {
+      return publicHosts;
+    }
   }
 
   if (user === null || typeof user !== 'object' || typeof user.getContentServers !== 'function') {
