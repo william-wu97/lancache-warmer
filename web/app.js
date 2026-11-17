@@ -1736,13 +1736,16 @@ async function boot() {
   connectLogs();
 
   const hasLoginHint = readLoginHint();
-  showLogin();
 
   if (hasLoginHint) {
+    // 之前登录过：保持 boot-view 占位，等 checkLogin 决定显示哪个视图。
+    // 这里绝不能先 showLogin()——那正是刷新时登录框一闪而过的原因。
     setLoginChip('检查中', 'unknown');
     setQrOverlay('loading', '正在检查登录状态…');
     setLoginStatus('正在检查登录状态…');
   } else {
+    // 明确没有登录记录，直接显示登录视图
+    showLogin();
     setLoginChip('未登录', 'off');
     setQrOverlay('loading', '正在生成二维码…');
     setLoginStatus('正在生成二维码…');
