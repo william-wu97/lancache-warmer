@@ -200,7 +200,20 @@ async function writeCache(file, names) {
 async function writeAppNamesCache(file, names) {
   try {
     await mkdir(path.dirname(file), { recursive: true });
-    await writeFile(file, JSON.stringify({ savedAt: Date.now(), names }, null, 2));
+    // 必须读旧缓存再合并：每次只查一两个 app，直接覆盖会把之前查到的冲掉。
+    let existing = {};
+    try {
+      const parsed = JSON.parse(await readFile(file, 'utf8'));
+      if (parsed && typeof parsed.names === 'object' && parsed.names !== null) {
+        existing = parsed.names;
+      }
+    } catch {
+      existing = {};
+    }
+    await writeFile(
+      file,
+      JSON.stringify({ savedAt: Date.now(), names: { ...existing, ...names } }, null, 2),
+    );
   } catch {
     // 缓存写失败不影响本次结果
   }
