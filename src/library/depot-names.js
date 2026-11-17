@@ -72,7 +72,11 @@ export async function resolveDepotNames(opts = {}) {
   const names = {};
   let note;
 
-  const games = await list();
+  // 前端把游戏库存在 localStorage，服务端的 library.json 往往是空的，
+  // 所以调用方直接传 appids 更可靠。
+  const games = Array.isArray(opts.appIds) && opts.appIds.length > 0
+    ? opts.appIds.map((appid) => ({ appid, name: String(appid) }))
+    : await list();
   if (games.length === 0) {
     note = '游戏库为空，只有内置表可用';
   } else if (wanted.size === 0) {
@@ -131,13 +135,16 @@ async function mapThroughLibrary(user, games, wanted, names) {
     }
 
     for (const game of chunk) {
-      const depots = productInfo?.apps?.[game.appid]?.appinfo?.depots;
+      const appinfo = productInfo?.apps?.[game.appid]?.appinfo;
+      const depots = appinfo?.depots;
       if (!depots || typeof depots !== 'object') {
         continue;
       }
+      // appinfo 自带游戏名，不必让前端把名字一起传过来
+      const displayName = appinfo?.common?.name || game.name;
       for (const depotId of Object.keys(depots)) {
         if (remaining.has(depotId)) {
-          names[depotId] = game.name;
+          names[depotId] = displayName;
           remaining.delete(depotId);
         }
       }

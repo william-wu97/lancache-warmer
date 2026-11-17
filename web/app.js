@@ -1477,7 +1477,10 @@ async function fetchCachedDepots() {
       // 名字要连着 Steam 查，慢且可能失败；拿不到就只显示 id。
       let names = {};
       try {
-        const resolved = await request('/api/depot-names', { timeoutMs: 25000 });
+        // 游戏库在浏览器里，服务端读不到，必须把 appid 带上它才能反查。
+        const appIds = state.library.map((item) => item.appid).join(',');
+        const url = appIds === '' ? '/api/depot-names' : `/api/depot-names?appids=${appIds}`;
+        const resolved = await request(url, { timeoutMs: 30000 });
         names = resolved && resolved.names ? resolved.names : {};
       } catch {
         names = {};

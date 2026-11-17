@@ -300,9 +300,14 @@ async function handleApiRequest(req, res, pathname, runner) {
     // Live lookups hit Steam and take a few seconds; results are cached for
     // 12 hours, so the panel only pays that cost on first load or refresh.
     try {
-      const refresh = new URL(req.url ?? '/', 'http://localhost')
-        .searchParams.get('refresh') === '1';
-      sendJson(res, 200, await resolveDepotNames({ refresh }));
+      const params = new URL(req.url ?? '/', 'http://localhost').searchParams;
+      const refresh = params.get('refresh') === '1';
+      // 前端游戏库存在浏览器 localStorage，服务端看不见，所以由它把 appid 带上来。
+      const appIds = (params.get('appids') ?? '')
+        .split(',')
+        .map((item) => Number(item.trim()))
+        .filter((id) => Number.isInteger(id) && id > 0);
+      sendJson(res, 200, await resolveDepotNames({ refresh, appIds }));
     } catch (error) {
       sendJson(res, 500, { error: error.message });
     }
