@@ -240,6 +240,28 @@ export async function prefillApp(user, appId, opts = {}) {
     }
   }
 
+  // 国内 CDN 要求 auth_key。token 按 (depot, host) 签发并在 steam-user
+  // 内部缓存，这里再缓存一层避免每个 chunk 都走一次异步调用。
+  const tokenCache = new Map();
+  async function authTokenFor(depotId, host) {
+    if (typeof user.getCDNAuthToken !== 'function') {
+      return '';
+    }
+    const key = `${depotId}_${host}`;
+    if (tokenCache.has(key)) {
+      return tokenCache.get(key);
+    }
+    let token = '';
+    try {
+      const response = await user.getCDNAuthToken(appId, depotId, host);
+      token = typeof response?.token === 'string' ? response.token : '';
+    } catch {
+      // 拿不到就不带：steamcontent 域名不需要，国内域名会失败并重试
+    }
+    tokenCache.set(key, token);
+    return token;
+  }
+
   /**
    * Download one chunk, retrying on the next host after a failure.
    *
@@ -251,7 +273,8 @@ export async function prefillApp(user, appId, opts = {}) {
       const host = nextHost();
 
       try {
-        const result = await download(host, task.depotId, task.sha, task.size);
+        const authToken = await authTokenFor(task.depotId, host);
+        const result = await download(host, task.depotId, task.sha, task.size, { authToken });
 
         chunksOk += 1;
         if (isObject(result) && typeof result.bytes === 'number' && Number.isFinite(result.bytes)) {

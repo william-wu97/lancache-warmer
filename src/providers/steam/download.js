@@ -176,7 +176,11 @@ export async function downloadChunk(host, depotId, sha, expectedSize, opts = {})
     throw new TypeError('opts.timeoutMs must be a positive number');
   }
 
-  const url = `http://${host}/depot/${depotId}/chunk/${sha}`;
+  // 国内 CDN（clngaa / pphimalayanrt 等）要求 auth_key，没有就 403。
+  // steam-user 的 getCDNAuthToken 返回的字符串已自带 `?auth_key=...`，
+  // 直接拼在路径后面即可（steam-content 域名不带也能过，带了也无害）。
+  const authToken = typeof opts.authToken === 'string' ? opts.authToken : '';
+  const url = `http://${host}/depot/${depotId}/chunk/${sha}${authToken}`;
   const controller = new AbortController();
 
   let timeoutId;
