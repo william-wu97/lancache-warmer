@@ -223,6 +223,10 @@
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
-  <script src="./app.js" defer></script>
+  <script>
+    // 内联诊断：先于 app.js 执行，用于区分「HTML 没加载」和「app.js 没跑」
+    console.info('[inline] HTML 已解析，boot-view 存在 =', !!document.getElementById('boot-view'));
+  </script>
+  <script src="./app.js" defer onerror="console.error('[inline] app.js 加载失败')"></script>
 </body>
 </html>
