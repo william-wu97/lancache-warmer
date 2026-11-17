@@ -72,7 +72,7 @@ export async function resolveDepotNames(opts = {}) {
   const names = {};
   let note;
 
-  const games = list();
+  const games = await list();
   if (games.length === 0) {
     note = '游戏库为空，只有内置表可用';
   } else if (wanted.size === 0) {

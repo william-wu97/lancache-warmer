@@ -32,6 +32,8 @@ services:
       PREFILL_STATE_DIR: /prefill
       OS_FILTER: windows
       CONCURRENCY: "16"
+      # 排查 CM 连接时临时打开
+      STEAM_DEBUG: "1"
     ports:
       # 对外 8082，避免和现有 cache-manager 的 8080 冲突
       - "8082:8080"
