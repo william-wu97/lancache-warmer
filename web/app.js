@@ -44,6 +44,8 @@ const state = {
   storageAvailable: true,
 
   library: [],
+  // appid → 该游戏的 DLC appid 列表（由 /api/depot-names 提供）
+  dlcMap: {},
   selected: new Set(),
 
   task: null,
@@ -922,26 +924,11 @@ function createGameRow(item) {
   appidLabel.htmlFor = checkbox.id;
   appidLabel.textContent = `#${item.appid}`;
 
-  const nameInput = document.createElement('input');
-  nameInput.type = 'text';
-  nameInput.className = 'game-name';
-  nameInput.value = item.name;
-  nameInput.placeholder = '未命名（可编辑）';
-  nameInput.maxLength = MAX_NAME_LENGTH;
-  nameInput.spellcheck = false;
-  nameInput.setAttribute('aria-label', `AppID ${item.appid} 的名称`);
-  nameInput.addEventListener('change', () => {
-    item.name = nameInput.value.trim().slice(0, MAX_NAME_LENGTH);
-    nameInput.value = item.name;
-    saveLibrary();
-    updateSelectionUi();
-  });
-  nameInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      nameInput.blur();
-    }
-  });
+  // 名称来自 Steam，只读展示：用户手改的名字和真实游戏名混在一起没意义
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'game-name';
+  nameSpan.textContent = item.name !== '' ? item.name : `App ${item.appid}`;
+  nameSpan.title = item.name !== '' ? item.name : '尚未取得名称，正在查询…';
 
   const removeButton = document.createElement('button');
   removeButton.type = 'button';
@@ -960,7 +947,18 @@ function createGameRow(item) {
     toggleSelection(item.appid, checkbox.checked);
   });
 
-  row.append(checkbox, appidLabel, nameInput, removeButton);
+  // 有 DLC 时标注数量（DLC 本身不在库里，只做提示）
+  const dlcIds = state.dlcMap[String(item.appid)] ?? [];
+  if (Array.isArray(dlcIds) && dlcIds.length > 0) {
+    const dlcBadge = document.createElement('span');
+    dlcBadge.className = 'game-dlc';
+    dlcBadge.textContent = `含 ${dlcIds.length} 个附加内容`;
+    dlcBadge.title = dlcIds.map((id) => `AppID ${id}`).join('\n');
+    row.append(checkbox, appidLabel, nameSpan, dlcBadge, removeButton);
+    return row;
+  }
+
+  row.append(checkbox, appidLabel, nameSpan, removeButton);
   return row;
 }
 
@@ -1051,7 +1049,8 @@ function addGame(raw) {
     return;
   }
 
-  const match = /^(\d+)(?:\s+(.+))?$/.exec(text);
+  // 名称由 Steam 决定，这里只接受纯数字 AppID（兼容旧习惯：多余的尾巴忽略）
+  const match = /^(\d+)(?:\s+.*)?$/.exec(text);
   if (match === null) {
     notify('AppID 必须是正整数', 'error');
     dom.appidInput.focus();
@@ -1070,7 +1069,8 @@ function addGame(raw) {
     return;
   }
 
-  const name = (match[2] ?? '').trim().slice(0, MAX_NAME_LENGTH);
+  // 名字一律留空，交给 fillMissingNames 从 Steam 补
+  const name = '';
   const existing = state.library.find((item) => item.appid === appid);
 
   if (existing !== undefined) {
@@ -1597,6 +1597,8 @@ async function fetchCachedDepots() {
         const url = appIds === '' ? '/api/depot-names' : `/api/depot-names?appids=${appIds}`;
         const resolved = await request(url, { timeoutMs: 30000 });
         names = resolved && resolved.names ? resolved.names : {};
+        // 后端顺带返回了 appid → DLC appid 列表，库里用它标「含 N 个附加内容」
+        state.dlcMap = resolved && resolved.dlc ? resolved.dlc : {};
       } catch {
         names = {};
       }

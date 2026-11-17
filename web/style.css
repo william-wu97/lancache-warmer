@@ -1510,3 +1510,27 @@ code {
 @media (prefers-reduced-motion: reduce) {
   .boot-spinner { animation-duration: 2.4s; }
 }
+
+/* 游戏名现在只读（来自 Steam），用 span 展示 */
+span.game-name {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text);
+  font-size: 14px;
+}
+
+/* 「含 N 个附加内容」标记 */
+.game-dlc {
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(74, 163, 255, 0.14);
+  color: #6fb4ff;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
