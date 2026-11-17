@@ -696,6 +696,14 @@ function hideBootView() {
   }
 }
 
+/** depot 明细挪到页脚后没有独立元素，title 只在元素存在时写入。 */
+function setDepotTitle(text) {
+  const el = dom.depotChip;
+  if (el !== null && el !== undefined) {
+    el.title = text;
+  }
+}
+
 function showLogin() {
   state.loggedIn = false;
   stopLoginTimers();
@@ -1591,16 +1599,16 @@ async function fetchCachedDepots() {
           return name ? `${item.depotId}  ${name}` : `${item.depotId}  （未识别）`;
         })
         : ['（空）'];
-      dom.depotChip.title = `已缓存 ${count} 个 depot / ${manifests} 个 manifest\n\n${lines.join('\n')}`;
+      setDepotTitle(`已缓存 ${count} 个 depot / ${manifests} 个 manifest\n\n${lines.join('\n')}`);
     } else {
       dom.depotValue.textContent = '无记录';
-      dom.depotChip.title = data && data.file
+      setDepotTitle(data && data.file
         ? `未找到 ${data.file}，检查 PREFILL_STATE_DIR 挂载`
-        : '未配置 PREFILL_STATE_DIR';
+        : '未配置 PREFILL_STATE_DIR');
     }
   } catch (error) {
     dom.depotValue.textContent = '—';
-    dom.depotChip.title = `读取已缓存清单失败：${errorText(error)}`;
+    setDepotTitle(`读取已缓存清单失败：${errorText(error)}`);
   }
 }
 
@@ -1614,7 +1622,7 @@ function cacheDom() {
   dom.loginValue = byId('login-value');
   dom.cacheChip = byId('cache-chip');
   dom.cacheValue = byId('cache-value');
-  dom.depotChip = byId('depot-chip');
+  dom.depotChip = byId('depot-chip');   // 可能不存在（已移到页脚），调用处需判空
   dom.depotValue = byId('depot-value');
   dom.versionValue = byId('version-value');
   dom.logoutButton = byId('logout-button');
