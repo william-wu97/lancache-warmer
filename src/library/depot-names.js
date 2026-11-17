@@ -138,7 +138,10 @@ async function mapThroughLibrary(user, games, wanted, names, appNames = {}, dlcI
 
     let productInfo;
     try {
-      productInfo = await user.getProductInfo(appIds, []);
+      // 第三个参数 metaDataOnly=true：只要元数据，不拉每个 depot 的
+      // manifest 详情。默认 false 时 data 包很大，实测频繁 Request timed out
+      // （worker 里一直是传 true 的）。
+      productInfo = await user.getProductInfo(appIds, [], true);
     } catch {
       continue;
     }
