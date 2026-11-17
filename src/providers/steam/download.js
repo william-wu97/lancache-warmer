@@ -177,9 +177,15 @@ export async function downloadChunk(host, depotId, sha, expectedSize, opts = {})
   }
 
   // 国内 CDN（clngaa / pphimalayanrt 等）要求 auth_key，没有就 403。
-  // steam-user 的 getCDNAuthToken 返回的字符串已自带 `?auth_key=...`，
-  // 直接拼在路径后面即可（steam-content 域名不带也能过，带了也无害）。
+  // steam-user 的 getCDNAuthToken 返回的字符串已自带 `?auth_key=...`。
   const authToken = typeof opts.authToken === 'string' ? opts.authToken : '';
+
+  // 直接连具体 CDN 域名：这些国内域名已由 dnsmasq 劫持到缓存服务器。
+  //
+  // 注：SteamKit2 的 ClientLancache 走的是另一条路——连接固定触发域名
+  // lancache.steamcontent.com，再用 Host 头指定真实 CDN，这样 DNS 只需
+  // 劫持 steamcontent.com 一个后缀。Node 的 fetch(undici) 不允许覆盖 Host
+  // 头（实测被忽略），要改用 node:http 才能实现，暂未采用。
   const url = `http://${host}/depot/${depotId}/chunk/${sha}${authToken}`;
   const controller = new AbortController();
 

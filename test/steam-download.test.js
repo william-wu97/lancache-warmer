@@ -70,24 +70,25 @@ test('downloadChunk parses x-cache-status and tolerates a missing header', async
   assert.deepEqual(absent, { bytes: 1, cacheStatus: null });
 });
 
-test('downloadChunk rejects a truncated or oversized body', async () => {
+test('downloadChunk rejects a truncated body but tolerates extra bytes', async () => {
+  // 少于预期：数据被截断，必须报错
   await assert.rejects(
     () => downloadChunk(HOST, DEPOT_ID, SHA, 10, {
       fetcher: async () => streamResponse([new Uint8Array(4)]),
     }),
     (error) => {
-      assert.match(error.message, /size mismatch/);
-      assert.match(error.message, /expected 10 bytes, got 4/);
+      assert.match(error.message, /truncated/);
+      assert.match(error.message, /at least 10 bytes, got 4/);
       return true;
     },
   );
 
-  await assert.rejects(
-    () => downloadChunk(HOST, DEPOT_ID, SHA, 2, {
-      fetcher: async () => streamResponse([new Uint8Array(3)]),
-    }),
-    /size mismatch/,
-  );
+  // 多于预期：expectedSize 是「压缩后」大小，国内 CDN 返回解压后的内容会更大，
+  // 这是正常的，不能当失败处理。
+  const result = await downloadChunk(HOST, DEPOT_ID, SHA, 2, {
+    fetcher: async () => streamResponse([new Uint8Array(3)]),
+  });
+  assert.equal(result.bytes, 3);
 });
 
 test('downloadChunk rejects a non-2xx response', async () => {
