@@ -241,14 +241,55 @@ function contentServerEntries(servers) {
  * @returns {Promise<string[]>}
  */
 async function defaultGetHosts(user, appId) {
+  // 先用公开的内容目录接口：steam-user 的 getContentServers 只返回本 cell
+  // 的节点，实测全是 cacheN-tyo3（东京），单连接 27KB/s 还频繁超时。
+  // 这个接口不受登录态影响，返回的是国内 CDN（clngaa / pphimalayanrt 等），
+  // 而这些域名同样能命中 lancache（见 access.log 的 HIT 记录）。
+  const publicHosts = await fetchPublicHosts();
+  if (publicHosts.length > 0) {
+    return publicHosts;
+  }
+
   if (user === null || typeof user !== 'object' || typeof user.getContentServers !== 'function') {
     throw new TypeError('Steam 客户端不支持 getContentServers()');
   }
 
   const response = await user.getContentServers(appId);
   const servers = Array.isArray(response) ? response : response?.servers;
-
   return pickHosts(contentServerEntries(servers));
+}
+
+/**
+ * Steam 的公开 CDN 目录。cell_id=0 表示不限区域，返回的是按当前出口 IP
+ * 优选的节点集合——在国内网络下通常就是那三个国内域名。
+ *
+ * @returns {Promise<string[]>}
+ */
+async function fetchPublicHosts() {
+  const url = 'https://api.steampowered.com/IContentServerDirectoryService/GetServersForSteamPipe/v1/?cell_id=0&max_servers=20';
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!response.ok) {
+      return [];
+    }
+    const payload = await response.json();
+    const servers = payload?.response?.servers;
+    if (!Array.isArray(servers)) {
+      return [];
+    }
+    const hosts = [];
+    const seen = new Set();
+    for (const server of servers) {
+      const host = typeof server?.host === 'string' ? server.host.trim().toLowerCase() : '';
+      if (host !== '' && !seen.has(host)) {
+        seen.add(host);
+        hosts.push(host);
+      }
+    }
+    return hosts;
+  } catch {
+    return [];
+  }
 }
 
 /**

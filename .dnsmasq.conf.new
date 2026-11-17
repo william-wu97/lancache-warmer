@@ -1,0 +1,33 @@
+# ============================================================
+#  dnsmasq：接管 53，把 Steam 内容域名固定指回本机缓存
+#
+#  为什么不用 lancache-dns 的域名列表：
+#  cache-domains 上游 steam.txt 现在只有 lancache.steamcontent.com 一行，
+#  SteamPrefill / steamcmd 不认这个触发域，请求会绕过缓存。
+#  dnsmasq 的 address=/domain/ip 天然匹配该域及其所有子域，
+#  不依赖任何外部列表，可控性最高。
+# ============================================================
+
+port=53
+no-resolv
+no-hosts
+cache-size=1000
+log-queries
+
+# Steam 内容域名 → 本机 lancache
+address=/steamcontent.com/192.168.31.3
+address=/steamstatic.com/192.168.31.3
+address=/steamcdn-a.akamaihd.net/192.168.31.3
+address=/content.steampowered.com/192.168.31.3
+
+
+# 国内 Steam CDN 节点：Steam 按出口 IP 分配，这台机器默认拿到的是东京
+# 节点(cacheN-tyo3)，单连接只有 27KB/s 且频繁超时。下面这些是
+# IContentServerDirectoryService 返回的国内节点，也指回本机才能进缓存。
+address=/steam.clngaa.com/192.168.31.3
+address=/pphimalayanrt.com/192.168.31.3
+address=/eccdnx.com/192.168.31.3
+
+# 其余域名走公共 DNS
+server=223.5.5.5
+server=202.96.128.86
