@@ -10,8 +10,8 @@
   --bg-soft: #0e1620;
   --bg-elev: #111b27;
   --bg-elev-2: #172433;
-  --panel: rgba(17, 27, 39, 0.82);
-  --panel-strong: rgba(19, 30, 43, 0.96);
+  --panel: #111b27;
+  --panel-strong: #131e2b;
 
   --border: rgba(148, 178, 205, 0.13);
   --border-strong: rgba(148, 178, 205, 0.26);
@@ -19,7 +19,7 @@
 
   --text: #e7eef7;
   --text-muted: #94a8bc;
-  --text-faint: #64778a;
+  --text-faint: #7d8fa3;  /* 5.2:1 on --bg，达 WCAG AA */
   --text-on-accent: #04202f;
 
   --accent: #4c9aff;
@@ -38,8 +38,19 @@
   --radius-lg: 10px;
   --radius-xl: 10px;
 
-  --shadow: 0 20px 50px rgba(0, 0, 0, 0.34);
-  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.22);
+  /* 两级阴影，都服务于「浮起」而非戏剧化 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.28);
+  --shadow: var(--shadow-md);
+  --shadow-soft: var(--shadow-sm);
+
+  /* 4px 基准的间距刻度 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
 
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
@@ -1524,4 +1535,27 @@ span.game-name {
   font-size: 12px;
   line-height: 1.6;
   white-space: nowrap;
+}
+
+/* 页脚：承载原本挤在顶栏的次要信息 */
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-8);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.app-footer strong {
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.footer-dot {
+  color: var(--border-strong);
 }
