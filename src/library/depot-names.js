@@ -62,7 +62,11 @@ export async function resolveDepotNames(opts = {}) {
   if (!opts.refresh) {
     const cached = await readCache(cachePath);
     if (cached) {
-      return { names: { ...cached.names, ...KNOWN_DEPOTS }, resolvedFromSteam: true };
+      return {
+        names: { ...cached.names, ...KNOWN_DEPOTS },
+        dlc: cached.dlc ?? {},
+        resolvedFromSteam: true,
+      };
     }
   }
 
@@ -100,7 +104,7 @@ export async function resolveDepotNames(opts = {}) {
         note = matched > 0
           ? `已比对 ${games.length} 个游戏，识别 ${matched} 个 depot，${missed} 个未匹配`
           : `已比对 ${games.length} 个游戏，但都不含这些 depot（库里的游戏太少？）`;
-        await writeCache(cachePath, names);
+        await writeCache(cachePath, names, dlcInfo);
         // 顺便把 appid → 游戏名存下来，供 /api/app-names 使用：
         // 这一次 getProductInfo 已经拿到了名字，没必要再单独查一遍。
         if (Object.keys(appNames).length > 0) {
@@ -191,7 +195,7 @@ async function readCache(file) {
     if (typeof parsed.savedAt !== 'number') return null;
     if (Date.now() - parsed.savedAt > CACHE_TTL_MS) return null;
     if (!parsed.names || typeof parsed.names !== 'object') return null;
-    return { names: parsed.names };
+    return { names: parsed.names, dlc: parsed.dlc ?? {} };
   } catch {
     return null;
   }
@@ -201,7 +205,7 @@ async function readCache(file) {
  * @param {string} file
  * @param {Record<string, string>} names
  */
-async function writeCache(file, names) {
+async function writeCache(file, names, dlc = {}) {
   if (Object.keys(names).length === 0) return;
   try {
     await mkdir(path.dirname(file), { recursive: true });
@@ -216,9 +220,22 @@ async function writeCache(file, names) {
     } catch {
       existing = {};
     }
+    let existingDlc = {};
+    try {
+      const parsed = JSON.parse(await readFile(file, 'utf8'));
+      if (parsed && typeof parsed.dlc === 'object' && parsed.dlc !== null) {
+        existingDlc = parsed.dlc;
+      }
+    } catch {
+      existingDlc = {};
+    }
     await writeFile(
       file,
-      JSON.stringify({ savedAt: Date.now(), names: { ...existing, ...names } }, null, 2),
+      JSON.stringify(
+        { savedAt: Date.now(), names: { ...existing, ...names }, dlc: { ...existingDlc, ...dlc } },
+        null,
+        2,
+      ),
     );
   } catch {
     // 缓存写不进去不影响本次结果，下次再查就是了
@@ -242,9 +259,22 @@ async function writeAppNamesCache(file, names) {
     } catch {
       existing = {};
     }
+    let existingDlc = {};
+    try {
+      const parsed = JSON.parse(await readFile(file, 'utf8'));
+      if (parsed && typeof parsed.dlc === 'object' && parsed.dlc !== null) {
+        existingDlc = parsed.dlc;
+      }
+    } catch {
+      existingDlc = {};
+    }
     await writeFile(
       file,
-      JSON.stringify({ savedAt: Date.now(), names: { ...existing, ...names } }, null, 2),
+      JSON.stringify(
+        { savedAt: Date.now(), names: { ...existing, ...names }, dlc: { ...existingDlc, ...dlc } },
+        null,
+        2,
+      ),
     );
   } catch {
     // 缓存写失败不影响本次结果
