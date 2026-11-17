@@ -37,7 +37,7 @@ services:
       # 排查 CM 连接时临时打开
       STEAM_DEBUG: "1"
       # 35=东京（CDN 全给 tyo3，慢）；49 试试国内 cell
-      STEAM_CELL: "0"
+      STEAM_CELL: "35"
       # 国内 CDN 需要 auth_key，warmer 暂不支持，默认关
       STEAM_PUBLIC_CDN: "1"
     ports:
