@@ -86,6 +86,13 @@ export async function resolveDepotNames(opts = {}) {
         const connectFn = opts.connectFn ?? connect;
         const user = await connectFn({ refreshToken: token.refreshToken });
         await mapThroughLibrary(user, games, wanted, names);
+        const matched = Object.keys(names).length;
+        const missed = wanted.size - matched;
+        // 说清楚为什么有些 depot 没名字：Steam 只有 app→depots 这一个方向，
+        // 库里没有对应游戏时反向映射就推不出来。
+        note = matched > 0
+          ? `已比对 ${games.length} 个游戏，识别 ${matched} 个 depot，${missed} 个未匹配`
+          : `已比对 ${games.length} 个游戏，但都不含这些 depot（库里的游戏太少？）`;
         await writeCache(cachePath, names);
       }
     } catch (error) {
