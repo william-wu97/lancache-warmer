@@ -1444,12 +1444,36 @@ async function fetchVersion() {
 }
 
 // ---------------------------------------------------------------------------
+// 缓存占用
+// ---------------------------------------------------------------------------
+
+async function fetchCacheStats() {
+  // 扫描大目录可能要几秒，给长一点的超时，失败时保留占位符而不是报错。
+  try {
+    const stats = await request('/api/cache', { timeoutMs: 30000 });
+    if (stats && stats.available) {
+      dom.cacheValue.textContent = formatBytes(stats.bytes);
+      const count = Number.isFinite(stats.files) ? stats.files : 0;
+      dom.cacheChip.title = `共 ${count.toLocaleString()} 个缓存文件（只读统计）`;
+    } else {
+      dom.cacheValue.textContent = '不可用';
+      dom.cacheChip.title = '缓存目录未挂载，检查 CACHE_DATA_DIR';
+    }
+  } catch (error) {
+    dom.cacheValue.textContent = '—';
+    dom.cacheChip.title = `读取缓存占用失败：${errorText(error)}`;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 初始化
 // ---------------------------------------------------------------------------
 
 function cacheDom() {
   dom.loginChip = byId('login-chip');
   dom.loginValue = byId('login-value');
+  dom.cacheChip = byId('cache-chip');
+  dom.cacheValue = byId('cache-value');
   dom.versionValue = byId('version-value');
   dom.logoutButton = byId('logout-button');
 
@@ -1567,6 +1591,7 @@ async function boot() {
   }
 
   void fetchVersion();
+  void fetchCacheStats();
   if (hasLoginHint) {
     await checkInitialLogin();
   } else {

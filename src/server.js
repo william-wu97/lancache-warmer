@@ -12,10 +12,17 @@ import {
   TaskValidationError,
 } from './api/task-runner.js';
 import config from './config.js';
+import { scanCache } from './library/cache.js';
 
 // Paths handled by the API router. Anything else below /api/ is not an API
 // route and falls through to the static handler.
-const API_PATHS = new Set(['/api/prefill', '/api/logs', '/api/task', '/api/cancel']);
+const API_PATHS = new Set([
+  '/api/prefill',
+  '/api/logs',
+  '/api/task',
+  '/api/cancel',
+  '/api/cache',
+]);
 
 // appIds requests are tiny; a larger body is always a mistake.
 const MAX_JSON_BODY_BYTES = 64 * 1024;
@@ -243,6 +250,23 @@ async function handleApiRequest(req, res, pathname, runner) {
       return;
     }
     sendJson(res, 200, runner.getSnapshot());
+    return;
+  }
+
+  if (pathname === '/api/cache') {
+    if (method !== 'GET') {
+      sendMethodNotAllowed(res, 'GET');
+      return;
+    }
+
+    // Read-only walk of the lancache volume. Scanning a multi-GB tree takes a
+    // moment, so this is deliberately a separate endpoint the panel calls once
+    // on load instead of folding it into every /api/task poll.
+    try {
+      sendJson(res, 200, await scanCache());
+    } catch (error) {
+      sendJson(res, 500, { error: error.message });
+    }
     return;
   }
 
