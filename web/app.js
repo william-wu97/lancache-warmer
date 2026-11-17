@@ -786,10 +786,8 @@ function loadLibrary() {
  * data/history.json，接口在 /api/legacy-history。
  */
 async function importLegacyHistory() {
-  if (state.library.length > 0) {
-    return;
-  }
-
+  // 幂等：只补库里还没有的 appid。之前是"库非空就跳过"，
+  // 结果旧面板漏记的第三个游戏（990380）永远补不进来。
   let data;
   try {
     data = await request('/api/legacy-history', { timeoutMs: 8000 });
