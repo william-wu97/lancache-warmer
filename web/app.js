@@ -930,13 +930,8 @@ function createGameRow(item) {
   nameSpan.textContent = item.name !== '' ? item.name : `App ${item.appid}`;
   nameSpan.title = item.name !== '' ? item.name : '尚未取得名称，正在查询…';
 
-  const removeButton = document.createElement('button');
-  removeButton.type = 'button';
-  removeButton.className = 'icon-button game-remove';
-  removeButton.setAttribute('aria-label', `移除 AppID ${item.appid}`);
-  removeButton.title = '从游戏库移除';
-  removeButton.textContent = '×';
-  removeButton.addEventListener('click', () => removeGame(item.appid));
+  // 不提供「移除」：lancache 是全量缓存，无法按游戏删除。把条目从列表
+  // 里去掉只会让人误以为缓存也清了，反而更困惑。
 
   row.addEventListener('click', (event) => {
     const target = event.target;
@@ -954,11 +949,11 @@ function createGameRow(item) {
     dlcBadge.className = 'game-dlc';
     dlcBadge.textContent = `含 ${dlcIds.length} 个附加内容`;
     dlcBadge.title = dlcIds.map((id) => `AppID ${id}`).join('\n');
-    row.append(checkbox, appidLabel, nameSpan, dlcBadge, removeButton);
+    row.append(checkbox, appidLabel, nameSpan, dlcBadge);
     return row;
   }
 
-  row.append(checkbox, appidLabel, nameSpan, removeButton);
+  row.append(checkbox, appidLabel, nameSpan);
   return row;
 }
 
@@ -1120,19 +1115,6 @@ function scrollRowIntoView(appid) {
 /**
  * @param {number} appid
  */
-function removeGame(appid) {
-  const index = state.library.findIndex((item) => item.appid === appid);
-  if (index === -1) {
-    return;
-  }
-
-  state.library.splice(index, 1);
-  state.selected.delete(appid);
-  saveLibrary();
-  renderLibrary();
-  dom.appidInput.focus();
-}
-
 function updateSelectionUi() {
   const count = state.selected.size;
   dom.selectedCount.textContent = String(count);
