@@ -1,0 +1,42 @@
+# ============================================================
+#  lancache-warmer 独立部署
+#
+#  设计：与现有的 lancache / cache-manager 并行运行，不抢端口。
+#  验证通过后，再把 cache-manager 停掉、warmer 改回 8080。
+#
+#  部署位置：/volume1/lancache/warmer
+#  启动：
+#    unc docker compose up --name lancache-warmer \
+#        --path /volume1/lancache/warmer \
+#        --from-file /volume1/lancache/warmer/docker-compose.yaml --run --yes
+# ============================================================
+
+services:
+  warmer:
+    # 不用 build：NAS 的 compose 项目不支持 build:，会直接 EXITED
+    image: node:24-bookworm
+    container_name: lancache-warmer
+    restart: unless-stopped
+    working_dir: /app
+    entrypoint: ["/bin/bash", "/app/deploy/start.sh"]
+    environment:
+      TZ: Asia/Shanghai
+      PORT: "8080"
+      NAS_IP: "192.168.31.3"
+      APP_DIR: /app
+      DATA_DIR: /app/data
+      # 缓存目录只读挂载，仅用于统计占用
+      CACHE_DIR: /cache
+      OS_FILTER: windows
+      CONCURRENCY: "16"
+    ports:
+      # 对外 8082，避免和现有 cache-manager 的 8080 冲突
+      - "8082:8080"
+    volumes:
+      - /volume1/lancache/warmer:/app
+      # 只读挂载缓存目录：warmer 不写缓存，只读来统计
+      - /volume1/lancache/data:/cache:ro
+    dns:
+      # 关键：用本机 dnsmasq 解析，chunk 请求才会落到 lancache
+      # 否则走公网，缓存一个字节都填不进去
+      - 192.168.31.3
