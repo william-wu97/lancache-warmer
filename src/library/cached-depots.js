@@ -86,7 +86,16 @@ export async function readCachedDepots(opts = {}) {
 
   let parsed;
   try {
-    parsed = JSON.parse(raw);
+    // Manifest ids exceed 2^53 (e.g. 7260605429366465749), so a plain
+    // JSON.parse silently rounds them — and a wrong manifest id means every
+    // chunk request 404s. The reviver's third argument carries the original
+    // source text, which lets us keep the exact digits as a string.
+    parsed = JSON.parse(raw, (key, value, context) => {
+      if (typeof value === 'number' && !Number.isSafeInteger(value)) {
+        return context?.source ?? String(value);
+      }
+      return value;
+    });
   } catch {
     return empty;
   }
