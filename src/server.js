@@ -300,7 +300,8 @@ async function handleApiRequest(req, res, pathname, runner) {
     // Live lookups hit Steam and take a few seconds; results are cached for
     // 12 hours, so the panel only pays that cost on first load or refresh.
     try {
-      const refresh = url.searchParams.get('refresh') === '1';
+      const refresh = new URL(req.url ?? '/', 'http://localhost')
+        .searchParams.get('refresh') === '1';
       sendJson(res, 200, await resolveDepotNames({ refresh }));
     } catch (error) {
       sendJson(res, 500, { error: error.message });
