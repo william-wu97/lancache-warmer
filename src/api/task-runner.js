@@ -521,7 +521,7 @@ export function createTaskRunner(options = {}) {
           throw new Error(`Steam 没有为应用 ${appId} 返回可用的内容节点`);
         }
         // 节点列表直接决定下载速度：全是东京节点时慢得离谱，打出来便于确认
-        log('info', `内容节点 ${hosts.length} 个：${hosts.slice(0, 4).join(' / ')}`);
+        log('info', `内容节点 ${hosts.length} 个：${hosts.slice(0, 12).join(' / ')}`);
 
         const result = await prefillApp(user, appId, {
           hosts,
