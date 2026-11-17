@@ -205,7 +205,21 @@ async function writeCache(file, names) {
   if (Object.keys(names).length === 0) return;
   try {
     await mkdir(path.dirname(file), { recursive: true });
-    await writeFile(file, JSON.stringify({ savedAt: Date.now(), names }, null, 2));
+    // 合并而不是覆盖：一次 refresh 通常只查一两个 app，直接覆盖会把
+    // 之前查到的 depot 名全冲掉。
+    let existing = {};
+    try {
+      const parsed = JSON.parse(await readFile(file, 'utf8'));
+      if (parsed && typeof parsed.names === 'object' && parsed.names !== null) {
+        existing = parsed.names;
+      }
+    } catch {
+      existing = {};
+    }
+    await writeFile(
+      file,
+      JSON.stringify({ savedAt: Date.now(), names: { ...existing, ...names } }, null, 2),
+    );
   } catch {
     // 缓存写不进去不影响本次结果，下次再查就是了
   }
