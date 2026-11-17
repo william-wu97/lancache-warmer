@@ -29,7 +29,9 @@ before(async () => {
     Buffer.alloc(1000),
   );
 
-  // Neither of these may contribute to the totals.
+  // These two don't belong to any depot, so they are absent from `depots`,
+  // but they still occupy disk and must count toward the totals — lancache's
+  // real layout is `cache/<2 hex>/<2 hex>/<key>` with no depot directories.
   await writeFile(
     path.join(cacheDir, 'steam', 'not-a-depot', 'ignored.bin'),
     Buffer.alloc(5000),
@@ -76,9 +78,10 @@ test('scanCache totals bytes, files and depots', async () => {
   const result = await scanCache(cacheDir);
 
   assert.equal(result.available, true);
-  assert.equal(result.bytes, 1350);
-  assert.equal(result.files, 3);
-  assert.equal(result.gb, 1350 / 1024 ** 3);
+  // 100 + 250 + 1000 (in depots) + 5000 + 4096 (outside) — every regular file counts
+  assert.equal(result.bytes, 10446);
+  assert.equal(result.files, 5);
+  assert.equal(result.gb, 10446 / 1024 ** 3);
   assert.deepEqual(result.depots, {
     123: { bytes: 350, files: 2 },
     456: { bytes: 1000, files: 1 },

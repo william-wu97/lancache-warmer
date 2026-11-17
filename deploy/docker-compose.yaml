@@ -24,9 +24,10 @@ services:
       PORT: "8080"
       NAS_IP: "192.168.31.3"
       APP_DIR: /app
-      DATA_DIR: /app/data
-      # 缓存目录只读挂载，仅用于统计占用
-      CACHE_DIR: /cache
+      # 变量名必须和 src/config.js 一致，否则会静默 fallback 到默认路径
+      WARMER_DATA_DIR: /app/data
+      # 指向 lancache 真正的缓存根（nginx 的 hash 分片目录在这里面）
+      CACHE_DATA_DIR: /cache/cache
       OS_FILTER: windows
       CONCURRENCY: "16"
     ports:

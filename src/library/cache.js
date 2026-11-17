@@ -44,20 +44,27 @@ async function collect(dir, depotId, totals) {
       continue;
     }
 
-    // Files outside any depot directory belong to other cache keys or to
-    // lancache's own bookkeeping and must not be counted.
-    if (depotId === null || !entry.isFile()) {
+    if (!entry.isFile()) {
       continue;
     }
 
     const { size } = await stat(entryPath);
+
+    // Every regular file counts toward the total. Lancache's own nginx layout
+    // is `cache/<2 hex>/<2 hex>/<key>` — it does NOT group by depot, so total
+    // size must not depend on finding a `depot_<id>` ancestor.
     totals.bytes += size;
     totals.files += 1;
 
-    const depot = totals.depots[depotId] ?? { bytes: 0, files: 0 };
-    depot.bytes += size;
-    depot.files += 1;
-    totals.depots[depotId] = depot;
+    // Depot breakdown is only available for cache servers that do keep a
+    // `depot_<id>` directory (e.g. custom layouts). When absent, `depots`
+    // simply stays empty and the UI shows the total.
+    if (depotId !== null) {
+      const depot = totals.depots[depotId] ?? { bytes: 0, files: 0 };
+      depot.bytes += size;
+      depot.files += 1;
+      totals.depots[depotId] = depot;
+    }
   }
 }
 
