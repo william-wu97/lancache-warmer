@@ -20,6 +20,10 @@
 import { randomUUID } from 'node:crypto';
 
 import { connect } from '../providers/steam/client.js';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import path from 'node:path';
+
+import config from '../config.js';
 import { pickHosts } from '../providers/steam/download.js';
 import { prefillApp as runPrefillApp } from '../providers/steam/prefill.js';
 import { loadToken } from '../providers/steam/token-store.js';
@@ -575,6 +579,10 @@ export function createTaskRunner(options = {}) {
           onProgress: publishProgress,
         });
 
+        if (Array.isArray(result?.depotList)) {
+          await recordDepots(result.depotList);
+        }
+
         const chunks = numberOrZero(result?.chunks);
         const failed = numberOrZero(result?.failed);
         const hit = numberOrZero(result?.hit);
@@ -658,4 +666,43 @@ export function createTaskRunner(options = {}) {
     whenSettled,
     log,
   });
+}
+
+/**
+ * 记录本次成功预填充的 depot。
+ *
+ * SteamPrefill 的 successfullyDownloadedDepots.json 只反映它自己下过的东西，
+ * warmer 的成果得单独存一份，两者在读取时合并。
+ *
+ * @param {Array<{ depotId: number, manifestId: string }>} entries
+ */
+async function recordDepots(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return;
+  }
+
+  const file = path.join(config.dataDir, 'warmer-depots.json');
+  let existing = {};
+  try {
+    const parsed = JSON.parse(await readFile(file, 'utf8'));
+    if (parsed && typeof parsed.depots === 'object' && parsed.depots !== null) {
+      existing = parsed.depots;
+    }
+  } catch {
+    existing = {};
+  }
+
+  for (const entry of entries) {
+    if (!Number.isSafeInteger(entry.depotId)) {
+      continue;
+    }
+    existing[String(entry.depotId)] = [String(entry.manifestId)];
+  }
+
+  try {
+    await mkdir(config.dataDir, { recursive: true });
+    await writeFile(file, JSON.stringify({ savedAt: Date.now(), depots: existing }, null, 2));
+  } catch {
+    // 记账失败不影响任务结果
+  }
 }

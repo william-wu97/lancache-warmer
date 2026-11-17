@@ -120,7 +120,45 @@ export async function readCachedDepots(opts = {}) {
     depots.push({ depotId: Number(key), manifestIds });
   }
 
+  // 合并 warmer 自己下载过的 depot：SteamPrefill 的清单只包含它下过的，
+  // 不合并的话界面上永远看不到 warmer 新增的内容。
+  const own = await readOwnDepots();
+  const known = new Set(depots.map((item) => item.depotId));
+  for (const entry of own) {
+    if (!known.has(entry.depotId)) {
+      depots.push(entry);
+      manifestCount += entry.manifestIds.length;
+      known.add(entry.depotId);
+    }
+  }
+
   depots.sort((left, right) => left.depotId - right.depotId);
 
   return { available: true, file, depots, manifestCount };
+}
+
+/**
+ * warmer 自己记录的已下载 depot（见 task-runner 的 recordDepots）。
+ *
+ * @returns {Promise<Array<{ depotId: number, manifestIds: string[] }>>}
+ */
+async function readOwnDepots() {
+  const file = path.join(config.dataDir, 'warmer-depots.json');
+  try {
+    const parsed = JSON.parse(await readFile(file, 'utf8'));
+    const depots = parsed?.depots;
+    if (!depots || typeof depots !== 'object') {
+      return [];
+    }
+    const out = [];
+    for (const [key, value] of Object.entries(depots)) {
+      if (!/^\d+$/.test(key)) continue;
+      const ids = Array.isArray(value) ? value.map(String) : [];
+      if (ids.length === 0) continue;
+      out.push({ depotId: Number(key), manifestIds: ids });
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }

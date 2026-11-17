@@ -148,6 +148,12 @@ function createDownloader(handler) {
   return { calls, download };
 }
 
+/** 去掉 depotList 后再比对：其余字段才是这些用例关心的行为。 */
+function withoutDepotList(result) {
+  const { depotList, ...rest } = result ?? {};
+  return rest;
+}
+
 test('prefillApp resolves appinfo, collects every depot and downloads every chunk', async () => {
   const { user, productCalls, manifestCalls } = createFakeUser();
   const progress = [];
@@ -164,7 +170,7 @@ test('prefillApp resolves appinfo, collects every depot and downloads every chun
     onProgress: (update) => progress.push(update),
   });
 
-  assert.deepEqual(result, {
+  assert.deepEqual(withoutDepotList(result), {
     appId: APP_ID,
     depots: 2,
     chunks: 6,
@@ -241,7 +247,7 @@ test('prefillApp retries a failing chunk on other hosts and keeps the rest movin
   assert.equal(new Set(failedCalls.map(({ host }) => host)).size, 3);
 
   // The failure is counted, not thrown; remaining chunks still download.
-  assert.deepEqual(result, {
+  assert.deepEqual(withoutDepotList(result), {
     appId: APP_ID,
     depots: 2,
     chunks: 6,
@@ -286,7 +292,7 @@ test('prefillApp succeeds when a retry on another host works', async () => {
   assert.equal(flakyCalls.length, 3);
   assert.deepEqual(flakyCalls.map(({ host }) => host), HOSTS);
   assert.equal(calls.length, 8);
-  assert.deepEqual(result, {
+  assert.deepEqual(withoutDepotList(result), {
     appId: APP_ID,
     depots: 2,
     chunks: 6,
@@ -316,7 +322,7 @@ test('prefillApp stops dispatching new chunks when shouldStop returns true', asy
   });
 
   assert.equal(calls.length, 2);
-  assert.deepEqual(result, {
+  assert.deepEqual(withoutDepotList(result), {
     appId: APP_ID,
     depots: 2,
     chunks: 6,
@@ -339,7 +345,7 @@ test('prefillApp dispatches nothing when shouldStop is already true', async () =
   });
 
   assert.equal(calls.length, 0);
-  assert.deepEqual(result, {
+  assert.deepEqual(withoutDepotList(result), {
     appId: APP_ID,
     depots: 2,
     chunks: 6,

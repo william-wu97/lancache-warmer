@@ -308,6 +308,12 @@ export async function prefillApp(user, appId, opts = {}) {
   return {
     appId,
     depots: depots.length,
+    // 供上层记录「已缓存 depot」：SteamPrefill 的清单只反映它自己下过的，
+    // warmer 自己下的必须单独记账，否则界面上永远看不到新增的 depot。
+    depotList: depots.map((depot) => ({
+      depotId: depot.depotId,
+      manifestId: depot.manifestId,
+    })),
     chunks: tasks.length,
     bytes,
     hit,
