@@ -16,7 +16,14 @@
 import { downloadChunk, runPool } from './download.js';
 import { collectChunks, collectDepots } from './manifest.js';
 
-const DEFAULT_CONCURRENCY = 16;
+/**
+ * 并发下载数。从 CONCURRENCY 环境变量读——之前写死 16，compose 里配了
+ * CONCURRENCY 也不生效。默认 32：实测单连接速率不高，靠并发堆吞吐。
+ */
+function defaultConcurrency() {
+  const raw = Number(process.env.CONCURRENCY);
+  return Number.isSafeInteger(raw) && raw > 0 ? raw : 32;
+}
 const DEFAULT_OS_FILTER = 'windows';
 
 // One chunk gets three attempts, each on the next host in rotation.
@@ -161,7 +168,7 @@ export async function prefillApp(user, appId, opts = {}) {
 
   const options = opts ?? {};
   const osFilter = String(options.osFilter ?? DEFAULT_OS_FILTER);
-  const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
+  const concurrency = options.concurrency ?? defaultConcurrency();
 
   if (!Number.isSafeInteger(concurrency) || concurrency < 1) {
     throw new TypeError('opts.concurrency must be a positive integer');
