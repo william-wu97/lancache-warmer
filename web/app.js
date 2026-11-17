@@ -910,6 +910,11 @@ function saveLibrary() {
   if (!state.storageAvailable) {
     return;
   }
+  // 空库不落盘：一旦 state.library 因读取失败或时序问题变空，写回就等于
+  // 把用户攒的游戏永久抹掉。清空交给显式操作（目前没有该入口）。
+  if (state.library.length === 0) {
+    return;
+  }
   try {
     window.localStorage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify(state.library));
   } catch {
