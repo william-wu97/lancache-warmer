@@ -109,6 +109,13 @@ import { saveToken } from './token-store.js';
 const sessions = new Map();
 
 /**
+ * How long a QR login attempt stays alive. Steam's QR code is good for roughly
+ * two minutes; we allow a little slack so the client-side countdown expires
+ * first and the UI never shows a live timer for a dead session.
+ */
+const DEFAULT_LOGIN_TIMEOUT_MS = 130 * 1000;
+
+/**
  * @param {SteamLoginSession} session
  * @returns {boolean}
  */
@@ -285,6 +292,16 @@ function createSteamSession() {
 export async function startLogin(opts = {}) {
   const sessionFactory = opts.sessionFactory ?? createSteamSession;
   const session = sessionFactory();
+
+  // steam-session 的默认 loginTimeout 是 30 秒，远短于 Steam 二维码的实际有效期，
+  // 结果就是倒计时还剩一分多钟就被判超时。这里显式抬到比前端倒计时稍长，
+  // 让「过期」由前端倒计时主导，用户看到的时间才是可信的。
+  try {
+    session.loginTimeout = opts.loginTimeoutMs ?? DEFAULT_LOGIN_TIMEOUT_MS;
+  } catch {
+    // 测试里的 fake 或旧版本实现可能没有这个 setter，忽略即可
+  }
+
   const sessionId = randomUUID();
 
   /** @type {LoginSessionEntry} */

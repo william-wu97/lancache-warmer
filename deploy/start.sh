@@ -15,15 +15,21 @@ REPO_TARBALL="https://codeload.github.com/william-wu97/lancache-warmer/tar.gz/re
 cd "$APP_DIR"
 
 # ---------- 1. 代码 ----------
-if [ ! -d "$APP_DIR/src" ]; then
-    echo "[start] 未发现代码，从 GitHub 拉取"
-    # codeload 可直连（github.com:443 在这条网络上不通，但 codeload 通）
-    if curl -fsSL "$REPO_TARBALL" | tar xz --strip=1 --exclude='.git*'; then
+# 每次启动都同步到最新：tar 里不含 data/，所以不会碰用户的游戏库和凭据。
+# 想锁版本就设 UPDATE_CODE=0。
+if [ "${UPDATE_CODE:-1}" != "0" ]; then
+    echo "[start] 同步代码到最新"
+    if curl -fsSL "$REPO_TARBALL" | tar xz --strip=1 --exclude='.git*' -C "$APP_DIR"; then
         echo "[start] 代码就绪"
-    else
-        echo "[start] 拉取代码失败，请检查网络或改为手动挂载代码" >&2
+    elif [ ! -d "$APP_DIR/src" ]; then
+        echo "[start] 拉取代码失败，且本地无代码可回退" >&2
         exit 1
+    else
+        echo "[start] 拉取失败，继续使用现有代码" >&2
     fi
+elif [ ! -d "$APP_DIR/src" ]; then
+    echo "[start] UPDATE_CODE=0 但本地没有代码" >&2
+    exit 1
 fi
 
 # ---------- 2. 依赖 ----------
