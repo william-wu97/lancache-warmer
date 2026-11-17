@@ -16,6 +16,7 @@ import { scanCache } from './library/cache.js';
 import { readCachedDepots } from './library/cached-depots.js';
 import { resolveDepotNames } from './library/depot-names.js';
 import { readLegacyHistory } from './library/legacy-history.js';
+import { resolveAppNames } from './library/app-names.js';
 
 // Paths handled by the API router. Anything else below /api/ is not an API
 // route and falls through to the static handler.
@@ -28,6 +29,7 @@ const API_PATHS = new Set([
   '/api/cached-depots',
   '/api/depot-names',
   '/api/legacy-history',
+  '/api/app-names',
 ]);
 
 // appIds requests are tiny; a larger body is always a mistake.
@@ -325,6 +327,27 @@ async function handleApiRequest(req, res, pathname, runner) {
     // 旧面板下载过的游戏，迁移时用来填充游戏库。
     try {
       sendJson(res, 200, await readLegacyHistory());
+    } catch (error) {
+      sendJson(res, 500, { error: error.message });
+    }
+    return;
+  }
+
+  if (pathname === '/api/app-names') {
+    if (method !== 'GET') {
+      sendMethodNotAllowed(res, 'GET');
+      return;
+    }
+
+    // 导入旧历史后只拿到 appid，这里补游戏名。结果缓存 24 小时。
+    try {
+      const params = new URL(req.url ?? '/', 'http://localhost').searchParams;
+      const appIds = (params.get('appids') ?? '')
+        .split(',')
+        .map((item) => Number(item.trim()))
+        .filter((id) => Number.isSafeInteger(id) && id > 0);
+      const refresh = params.get('refresh') === '1';
+      sendJson(res, 200, await resolveAppNames(appIds, { refresh }));
     } catch (error) {
       sendJson(res, 500, { error: error.message });
     }

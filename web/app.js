@@ -821,6 +821,45 @@ async function importLegacyHistory() {
   saveLibrary();
   renderLibrary();
   notify(`已从旧面板导入 ${added} 个游戏`, 'info');
+
+  // history.json 只有 appid，名字要连 Steam 查。拿到后原地更新，不阻塞导入。
+  await fillMissingNames();
+}
+
+/**
+ * 把库里仍是占位名（`App <id>`）的条目补成真实游戏名。
+ * 只查占位名的，避免每次刷新都打一遍 Steam。
+ */
+async function fillMissingNames() {
+  const placeholders = state.library.filter(
+    (item) => item.name === `App ${item.appid}` || item.name === '' || item.name == null,
+  );
+  if (placeholders.length === 0) {
+    return;
+  }
+
+  const ids = placeholders.map((item) => item.appid).join(',');
+  let resolved;
+  try {
+    resolved = await request(`/api/app-names?appids=${ids}`, { timeoutMs: 40000 });
+  } catch {
+    return;
+  }
+
+  const names = resolved && resolved.names ? resolved.names : {};
+  let changed = 0;
+  for (const item of state.library) {
+    const name = names[String(item.appid)];
+    if (typeof name === 'string' && name !== '' && item.name !== name) {
+      item.name = name;
+      changed += 1;
+    }
+  }
+
+  if (changed > 0) {
+    saveLibrary();
+    renderLibrary();
+  }
 }
 
 function saveLibrary() {
@@ -1679,7 +1718,7 @@ async function boot() {
   void fetchVersion();
   void fetchCacheStats();
   void fetchCachedDepots();
-  void importLegacyHistory();
+  void importLegacyHistory().then(() => fillMissingNames());
   if (hasLoginHint) {
     await checkInitialLogin();
   } else {
