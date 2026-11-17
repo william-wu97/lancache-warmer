@@ -1128,6 +1128,9 @@ function updateSelectionUi() {
 
   if (state.taskRunning) {
     dom.selectedNote.textContent = '任务运行中，完成或停止后可再次启动';
+  } else if (state.task !== null && state.task.state === 'done' && count > 0) {
+    // 已完成时说明复跑的实际行为，避免误以为要重新下载
+    dom.selectedNote.textContent = '上一轮已完成；再次运行会重新校验，通常全部命中缓存';
   } else if (count === 0) {
     dom.selectedNote.textContent = '勾选游戏后开始预填充';
   } else {
@@ -1153,7 +1156,14 @@ function updateButtons() {
     || state.selected.size === 0
     || running
     || state.startingTask;
-  dom.startButton.textContent = state.startingTask ? '正在启动…' : '开始预填充';
+  if (state.startingTask) {
+    dom.startButton.textContent = '正在启动…';
+  } else if (!running && state.task !== null && state.task.state === 'done') {
+    // 上一轮已结束：按钮仍可用（允许复跑校验），但文案要说明是「再次」
+    dom.startButton.textContent = '再次预填充';
+  } else {
+    dom.startButton.textContent = '开始预填充';
+  }
 
   dom.stopButton.disabled = !running || state.stoppingTask || state.cancelRequested;
   dom.stopButton.textContent = state.stoppingTask
