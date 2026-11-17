@@ -30,7 +30,9 @@ const DEFAULT_CELL_ID = 35;
  */
 function configuredCellId() {
   const raw = Number(process.env.STEAM_CELL);
-  return Number.isSafeInteger(raw) && raw > 0 ? raw : DEFAULT_CELL_ID;
+  // 0 是合法值：表示"不限 cell"，Steam 会返回全量节点列表，
+  // 这样才能看到国内 CDN（clngaa / pphimalayan 等）
+  return Number.isSafeInteger(raw) && raw >= 0 ? raw : DEFAULT_CELL_ID;
 }
 
 /**

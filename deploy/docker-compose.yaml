@@ -37,7 +37,7 @@ services:
       # 排查 CM 连接时临时打开
       STEAM_DEBUG: "1"
       # 35=东京（CDN 全给 tyo3，慢）；49 试试国内 cell
-      STEAM_CELL: "49"
+      STEAM_CELL: "0"
     ports:
       # 对外 8082，避免和现有 cache-manager 的 8080 冲突
       - "8082:8080"
