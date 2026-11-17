@@ -1627,7 +1627,8 @@ function cacheDom() {
   dom.loginValue = byId('login-value');
   dom.cacheChip = byId('cache-chip');
   dom.cacheValue = byId('cache-value');
-  dom.depotChip = byId('depot-chip');   // 可能不存在（已移到页脚），调用处需判空
+  // 这个元素可能不存在（信息已移到页脚），用 getElementById 允许为 null
+  dom.depotChip = document.getElementById('depot-chip');
   dom.depotValue = byId('depot-value');
   dom.versionValue = byId('version-value');
   dom.logoutButton = byId('logout-button');
@@ -1722,8 +1723,10 @@ function bindEvents() {
 async function boot() {
   try {
     cacheDom();
-  } catch {
-    // 页面结构不完整时没有可用的提示容器，直接放弃初始化。
+  } catch (error) {
+    // 页面结构不完整时没有可用的提示容器，但错误必须记录下来——
+    // 静默 return 会让页面永远停在启动占位，且控制台一片空白。
+    console.error('[boot] DOM 缓存失败，初始化中止:', error);
     return;
   }
 
