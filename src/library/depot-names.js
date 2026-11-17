@@ -229,10 +229,22 @@ async function writeCache(file, names, dlc = {}) {
     } catch {
       existingDlc = {};
     }
+    // 内置表里的公共 depot 不落盘：appinfo 遍历会把它们算到碰巧先查到的
+    // 那个游戏名下，写进去就会污染缓存。
+    const persistable = {};
+    for (const [key, value] of Object.entries(names)) {
+      if (!(key in KNOWN_DEPOTS)) {
+        persistable[key] = value;
+      }
+    }
     await writeFile(
       file,
       JSON.stringify(
-        { savedAt: Date.now(), names: { ...existing, ...names }, dlc: { ...existingDlc, ...dlc } },
+        {
+          savedAt: Date.now(),
+          names: { ...existing, ...persistable },
+          dlc: { ...existingDlc, ...dlc },
+        },
         null,
         2,
       ),
@@ -268,10 +280,22 @@ async function writeAppNamesCache(file, names) {
     } catch {
       existingDlc = {};
     }
+    // 内置表里的公共 depot 不落盘：appinfo 遍历会把它们算到碰巧先查到的
+    // 那个游戏名下，写进去就会污染缓存。
+    const persistable = {};
+    for (const [key, value] of Object.entries(names)) {
+      if (!(key in KNOWN_DEPOTS)) {
+        persistable[key] = value;
+      }
+    }
     await writeFile(
       file,
       JSON.stringify(
-        { savedAt: Date.now(), names: { ...existing, ...names }, dlc: { ...existingDlc, ...dlc } },
+        {
+          savedAt: Date.now(),
+          names: { ...existing, ...persistable },
+          dlc: { ...existingDlc, ...dlc },
+        },
         null,
         2,
       ),

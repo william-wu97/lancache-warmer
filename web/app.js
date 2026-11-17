@@ -865,18 +865,28 @@ async function fillMissingNames() {
 
   const ids = placeholders.map((item) => item.appid).join(',');
 
-  // refresh=1 强制重查。depot-names 查询过程会把 appid→名字顺带写进
-  // app-names 缓存，所以先触发它，再读缓存拿结果。
+  // 先读缓存：多数情况下名字早就在 app-names.json 里了，这一步只要几十毫秒。
+  let resolved = null;
   try {
-    await request(`/api/depot-names?refresh=1&appids=${ids}`, { timeoutMs: 90000 });
+    resolved = await request(`/api/app-names?appids=${ids}`, { timeoutMs: 8000 });
   } catch {
-    // 查不到就保持占位名，不打扰用户
+    resolved = null;
   }
 
-  let resolved;
-  try {
-    resolved = await request(`/api/app-names?appids=${ids}`, { timeoutMs: 20000 });
-  } catch {
+  // 缓存里仍有缺失时才去问 Steam（这一步要几十秒，不能每次都跑）
+  const stillMissing = Array.isArray(resolved?.unresolved) ? resolved.unresolved : [];
+  if (stillMissing.length > 0) {
+    try {
+      await request(`/api/depot-names?refresh=1&appids=${stillMissing.join(',')}`, {
+        timeoutMs: 90000,
+      });
+      resolved = await request(`/api/app-names?appids=${ids}`, { timeoutMs: 8000 });
+    } catch {
+      // 查不到就保持占位名，不打扰用户
+    }
+  }
+
+  if (resolved === null) {
     return;
   }
 
