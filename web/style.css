@@ -819,12 +819,13 @@ code {
   color: var(--text-faint);
 }
 
-.game-name:hover {
+/* 只对输入框生效：名字改成只读 span 后，不该再有悬停边框 */
+input.game-name:hover {
   border-color: var(--border);
   background: rgba(255, 255, 255, 0.025);
 }
 
-.game-name:focus {
+input.game-name:focus {
   border-color: var(--border-accent);
   background: var(--bg-soft);
 }
