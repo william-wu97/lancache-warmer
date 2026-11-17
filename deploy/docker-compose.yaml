@@ -28,6 +28,8 @@ services:
       WARMER_DATA_DIR: /app/data
       # 指向 lancache 真正的缓存根（nginx 的 hash 分片目录在这里面）
       CACHE_DATA_DIR: /cache/cache
+      # SteamPrefill 的账本目录：successfullyDownloadedDepots.json 在这里
+      PREFILL_STATE_DIR: /prefill
       OS_FILTER: windows
       CONCURRENCY: "16"
     ports:
@@ -37,6 +39,8 @@ services:
       - /volume1/lancache/warmer:/app
       # 只读挂载缓存目录：warmer 不写缓存，只读来统计
       - /volume1/lancache/data:/cache:ro
+      # SteamPrefill 的状态目录：读它记录的已下载 depot 清单（只读）
+      - /volume2/docker/steam-prefill:/prefill:ro
     dns:
       # 关键：用本机 dnsmasq 解析，chunk 请求才会落到 lancache
       # 否则走公网，缓存一个字节都填不进去

@@ -1465,6 +1465,30 @@ async function fetchCacheStats() {
   }
 }
 
+async function fetchCachedDepots() {
+  // SteamPrefill 自己记的账，比扫 nginx 缓存目录准。
+  try {
+    const data = await request('/api/cached-depots', { timeoutMs: 10000 });
+    if (data && data.available) {
+      const count = Array.isArray(data.depots) ? data.depots.length : 0;
+      dom.depotValue.textContent = `${count} depot`;
+      const manifests = Number.isFinite(data.manifestCount) ? data.manifestCount : 0;
+      const ids = count > 0
+        ? data.depots.map((item) => item.depotId).join(', ')
+        : '（空）';
+      dom.depotChip.title = `已缓存 ${count} 个 depot / ${manifests} 个 manifest\n${ids}`;
+    } else {
+      dom.depotValue.textContent = '无记录';
+      dom.depotChip.title = data && data.file
+        ? `未找到 ${data.file}，检查 PREFILL_STATE_DIR 挂载`
+        : '未配置 PREFILL_STATE_DIR';
+    }
+  } catch (error) {
+    dom.depotValue.textContent = '—';
+    dom.depotChip.title = `读取已缓存清单失败：${errorText(error)}`;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 初始化
 // ---------------------------------------------------------------------------
@@ -1474,6 +1498,8 @@ function cacheDom() {
   dom.loginValue = byId('login-value');
   dom.cacheChip = byId('cache-chip');
   dom.cacheValue = byId('cache-value');
+  dom.depotChip = byId('depot-chip');
+  dom.depotValue = byId('depot-value');
   dom.versionValue = byId('version-value');
   dom.logoutButton = byId('logout-button');
 
@@ -1592,6 +1618,7 @@ async function boot() {
 
   void fetchVersion();
   void fetchCacheStats();
+  void fetchCachedDepots();
   if (hasLoginHint) {
     await checkInitialLogin();
   } else {

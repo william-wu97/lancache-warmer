@@ -60,6 +60,9 @@ const config = Object.freeze({
   // Root of the lancache data volume. The warmer only reads it, to report how
   // much content is cached and which Steam depots are present.
   cacheDir: path.resolve(process.env.CACHE_DATA_DIR || DEFAULT_CACHE_DIR),
+  // Directory holding SteamPrefill's `successfullyDownloadedDepots.json`.
+  // Empty when not mounted, in which case the cached-depot list is unavailable.
+  prefillStateDir: process.env.PREFILL_STATE_DIR || '',
 });
 
 export default config;

@@ -13,6 +13,7 @@ import {
 } from './api/task-runner.js';
 import config from './config.js';
 import { scanCache } from './library/cache.js';
+import { readCachedDepots } from './library/cached-depots.js';
 
 // Paths handled by the API router. Anything else below /api/ is not an API
 // route and falls through to the static handler.
@@ -22,6 +23,7 @@ const API_PATHS = new Set([
   '/api/task',
   '/api/cancel',
   '/api/cache',
+  '/api/cached-depots',
 ]);
 
 // appIds requests are tiny; a larger body is always a mistake.
@@ -264,6 +266,23 @@ async function handleApiRequest(req, res, pathname, runner) {
     // on load instead of folding it into every /api/task poll.
     try {
       sendJson(res, 200, await scanCache());
+    } catch (error) {
+      sendJson(res, 500, { error: error.message });
+    }
+    return;
+  }
+
+  if (pathname === '/api/cached-depots') {
+    if (method !== 'GET') {
+      sendMethodNotAllowed(res, 'GET');
+      return;
+    }
+
+    // SteamPrefill's own record of what it finished downloading. Authoritative
+    // for "already cached", unlike the nginx cache volume which carries no
+    // depot information.
+    try {
+      sendJson(res, 200, await readCachedDepots());
     } catch (error) {
       sendJson(res, 500, { error: error.message });
     }
