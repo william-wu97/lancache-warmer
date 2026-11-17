@@ -30,6 +30,8 @@ services:
       CACHE_DATA_DIR: /cache/cache
       # SteamPrefill 的账本目录：successfullyDownloadedDepots.json 在这里
       PREFILL_STATE_DIR: /prefill
+      # 旧 Python 面板的数据目录：迁移下载历史用
+      LEGACY_STATE_DIR: /legacy
       OS_FILTER: windows
       CONCURRENCY: "16"
       # 排查 CM 连接时临时打开
@@ -43,6 +45,8 @@ services:
       - /volume1/lancache/data:/cache:ro
       # SteamPrefill 的状态目录：读它记录的已下载 depot 清单（只读）
       - /volume2/docker/steam-prefill:/prefill:ro
+      # 旧面板的 history.json（只读）
+      - /volume2/docker/steam-cache-manager/data:/legacy:ro
     dns:
       # 主 DNS 指向本机 dnsmasq：chunk 请求才会落到 lancache（否则走公网，
       # 缓存一个字节都填不进去）。

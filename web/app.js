@@ -779,6 +779,50 @@ function loadLibrary() {
   state.library = items.sort((left, right) => left.appid - right.appid);
 }
 
+/**
+ * 首次打开时把旧 Python 面板的下载历史搬进游戏库。
+ *
+ * 只在库为空时执行，避免覆盖用户自己维护的列表；旧面板把记录存在
+ * data/history.json，接口在 /api/legacy-history。
+ */
+async function importLegacyHistory() {
+  if (state.library.length > 0) {
+    return;
+  }
+
+  let data;
+  try {
+    data = await request('/api/legacy-history', { timeoutMs: 8000 });
+  } catch {
+    return;
+  }
+
+  if (!data || !data.available || !Array.isArray(data.entries) || data.entries.length === 0) {
+    return;
+  }
+
+  const known = new Set(state.library.map((item) => item.appid));
+  let added = 0;
+  for (const entry of data.entries) {
+    if (!Number.isSafeInteger(entry.appid) || known.has(entry.appid)) {
+      continue;
+    }
+    // 名字后续由 /api/depot-names 反查补上，这里先用占位。
+    state.library.push({ appid: entry.appid, name: `App ${entry.appid}` });
+    known.add(entry.appid);
+    added += 1;
+  }
+
+  if (added === 0) {
+    return;
+  }
+
+  state.library.sort((left, right) => left.appid - right.appid);
+  saveLibrary();
+  renderLibrary();
+  notify(`已从旧面板导入 ${added} 个游戏`, 'info');
+}
+
 function saveLibrary() {
   if (!state.storageAvailable) {
     return;
@@ -1635,6 +1679,7 @@ async function boot() {
   void fetchVersion();
   void fetchCacheStats();
   void fetchCachedDepots();
+  void importLegacyHistory();
   if (hasLoginHint) {
     await checkInitialLogin();
   } else {

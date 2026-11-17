@@ -63,6 +63,8 @@ const config = Object.freeze({
   // Directory holding SteamPrefill's `successfullyDownloadedDepots.json`.
   // Empty when not mounted, in which case the cached-depot list is unavailable.
   prefillStateDir: process.env.PREFILL_STATE_DIR || '',
+  // 旧 Python 面板的数据目录，用来把历史记录迁过来。
+  legacyStateDir: process.env.LEGACY_STATE_DIR || '',
 });
 
 export default config;
